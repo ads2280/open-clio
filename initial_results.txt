@@ -1,4 +1,4 @@
-oaded 200 summaries
+Loaded 200 summaries
 Batches: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 7/7 [00:00<00:00,  8.82it/s]
 embeddings generated, shape: (200, 768)
 starting to cluster, using K=14 clusters for 200 summaries

@@ -59,20 +59,20 @@ for cluster_id in unique_clusters:
     cluster_embeddings = embeddings[cluster_mask]
     cluster_centroid = np.mean(cluster_embeddings, axis=0)
     
-    # Find distances from centroid to all non-cluster points
+    # get distances from centroid to all non-cluster points
     non_cluster_mask = ~cluster_mask
     non_cluster_embeddings = embeddings[non_cluster_mask]
     non_cluster_summaries = [summaries[i] for i in range(len(summaries)) if not cluster_mask[i]]
     
-    # Calculate distances to centroid
+    # calculate distances to centroid
     distances = np.linalg.norm(non_cluster_embeddings - cluster_centroid, axis=1)
     
-    # Get the closest non-cluster summaries
+    # get closest non-cluster summaries
     n_contrastive = 50 # make this a param later
     nearest_indices = np.argsort(distances)[:n_contrastive]
     contrastive_summaries = [non_cluster_summaries[i] for i in nearest_indices]
     
-    # Use to generate the description
+    # use to generate the description
     max_summaries = 15 #arbitrary, to avoid token lims, can change later
     if len(cluster_summaries) > max_summaries:
         cluster_sample = np.random.choice(cluster_summaries, max_summaries, replace=False).tolist()  
@@ -190,7 +190,6 @@ for cluster_id, info in cluster_info.items():
     print(f"Sample summaries: {info['summaries'][:3]}")
 
 print(f"base cluster complete!")
-
 
 
 # starting hierarchical clustering (G7)
@@ -406,7 +405,6 @@ cluster names that could encompass multiple sub-clusters.
                         if name.startswith('[') and name.endswith(']'):
                             name=name[1:-1]
                         proposed_names.append(name) # we now have proposed_names
-            # FIXED: Add fallback if no names extracted
             if not proposed_names:
                 print(f"Warning: No names extracted from Claude response for neighborhood {neighborhood_id}")
                 # Create fallback names based on the actual clusters in this neighborhood
@@ -555,7 +553,7 @@ they represent.
     random.shuffle(shuffled)
     higher_level_text = '\n'.join([f'<cluster>{name}</cluster>' for name in shuffled])
         
-    for cluster_id, cluster_info in current_clusters.items(): #Print to know what it looks like
+    for cluster_id, cluster_info in current_clusters.items(): 
         assign_user_prompt = f"""
 You are tasked with categorizing a specific cluster into one of the provided
 higher-level clusters for observability, monitoring, and content
@@ -781,9 +779,7 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
 
         # after this loop term, we have new_lvl_clusters dict with new level clusters
 
-     
-
-print("SAVING CLUSTERING RESULTS")
+print("Clustering complete! Saving Results...")
 dataframes = save_results(
     hierarchy=hierarchy,
     example_ids=example_ids, 
@@ -796,5 +792,5 @@ if hierarchy['max_level'] > 0:
     for level in range(1, hierarchy['max_level'] + 1):
         print(f"- level_{level}_clusters.csv: Level {level} clusters")
 
-print(f"\nSee /clustering_results for csv files!")
+print(f"\nSee /clustering_results for csv files.")
 

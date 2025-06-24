@@ -14,13 +14,12 @@ client.create_examples(
     ]
 )
 
-# Fetch examples from the new dataset and update them with cleaned inputs
+# clio applies special handling to data such as function calls, metadata, system prompts
+# this isn't identical but it's similar -- we get rid of fields such as documents, steps, etc.
 new_examples = list(client.list_examples(dataset_name=new_dataset))
 for example in new_examples:
-    # Clean the inputs by removing documents
+    # remove documents 
     inputs = example.inputs.copy()
-    
-    # Fixed: Remove documents from the correct location
     if "documents" in inputs:
         del inputs["documents"]
         print(f"Removed documents from example {example.id}")
@@ -28,7 +27,7 @@ for example in new_examples:
     if "steps" in inputs and (not inputs["steps"] or inputs["steps"] == []):
        del inputs["steps"]
    
-   # Clean up messages array
+   # cleanup within the messages array
     if "messages" in inputs and isinstance(inputs["messages"], list):
         cleaned_messages = []
         for msg in inputs["messages"]:
@@ -38,29 +37,14 @@ for example in new_examples:
                     "type": msg.get("type"),
                     "content": msg.get("content")
                 }
-                # Only add if content exists and is meaningful
-                if clean_msg["content"] and clean_msg["content"].strip():
-                    cleaned_messages.append(clean_msg)
        
         inputs["messages"] = cleaned_messages
     
-    # Update the example in the new dataset
+    # update each item in LS
     client.update_example(
         example_id=example.id,
         inputs=inputs,
         outputs=example.outputs,
         metadata=example.metadata
     )
-
-print("Done cleaning up DATA!")
-
-
-## TODO
-# remove documents!!!
-
-# cleaned up data e.g. for tool calling
-
-#Removes empty steps arrays
-#Strips messages down to just type and content
-#Removes messages with empty/whitespace-only content
-#Filters out all the metadata bloat (additional_kwargs, response_metadata, tool_calls, etc.)
+    # inputs only contain "query" and "answer" keys now
