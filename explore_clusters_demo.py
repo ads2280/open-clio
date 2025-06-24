@@ -286,8 +286,9 @@ def display_full_example(full_examples_df: pd.DataFrame, example_id: str):
         st.write(example_row['input_answer'])
 
 def main():
-    st.title("🔍 Hierarchical Cluster Explorer - Demo")
-    st.markdown("Explore our pre-loaded cluster hierarchy and conversation examples")
+    st.title("OpenCLIO for Chat LangChain - Demo")
+    st.markdown("Explore 200 LangChain conversations organized into hierarchical clusters")
+    st.markdown("You can navigate from 4 high-level topic areas down to 14 specific clusters, then view individual conversation examples.")
     
     init_session_state()
     
