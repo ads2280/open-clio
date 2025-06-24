@@ -281,10 +281,10 @@ def display_examples(examples_df: pd.DataFrame, cluster_id: int):
             
             st.divider()
 
-def display_full_example(raw_examples_df: pd.DataFrame, example_id: str):
+def display_full_example(full_examples_df: pd.DataFrame, example_id: str):
     
-    # examples_by_examples id
-    matching_examples = raw_examples_df[raw_examples_df['example_id'] == example_id]
+    # Find by 'id' column (not 'example_id')
+    matching_examples = full_examples_df[full_examples_df['id'] == example_id]
     
     if len(matching_examples) == 0:
         st.error(f"Example {example_id} not found in raw examples data.")
