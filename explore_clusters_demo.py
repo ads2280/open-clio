@@ -199,6 +199,32 @@ def display_breadcrumb():
                 st.session_state.selected_cluster = None
         st.rerun()
 
+def display_parent_stack():
+    """Show all parent clusters stacked vertically"""
+    if not st.session_state.navigation_path:
+        return
+    
+    # Show each parent in the navigation path
+    for step in st.session_state.navigation_path:
+        st.markdown(f"**L={step['level']}: {step['name']}**")
+    
+    # Show current level description prominently 
+    if st.session_state.navigation_path:
+        current_step = st.session_state.navigation_path[-1]
+        current_level = current_step['level']
+        current_cluster_id = current_step['cluster_id']
+        
+        # Get the current cluster data to show its description
+        dataframes = st.session_state.dataframes
+        current_data = dataframes[f'level_{current_level}']
+        current_cluster = current_data[current_data['cluster_id'] == current_cluster_id].iloc[0]
+        
+        if pd.notna(current_cluster['description']):
+            description = str(current_cluster['description']).replace('<summary>', '').replace('</summary>', '').strip()
+            st.markdown(f"*{description}*")
+        
+        st.markdown("---")
+
 def display_examples(examples_df: pd.DataFrame, cluster_id: int):
     """Show the actual conversation examples for a base cluster"""
     # Filter to just the examples in this cluster
@@ -308,6 +334,7 @@ def main():
     
     # Show the navigation breadcrumb
     display_breadcrumb()
+    display_parent_stack()
     
     dataframes = st.session_state.dataframes
     
@@ -341,13 +368,6 @@ def main():
             # We're at a middle level, show its child clusters
             current_data = dataframes[f'level_{current_level}']
             current_cluster = current_data[current_data['cluster_id'] == current_cluster_id].iloc[0]
-            
-            # show parent cluster info
-            st.markdown(f"### Parent Cluster: {current_cluster['name']}")
-            if pd.notna(current_cluster['description']):
-                description = str(current_cluster['description']).replace('<summary>', '').replace('</summary>', '').strip()
-                st.markdown(f"*{description}*")
-            st.markdown("---")
 
             # Find the children of this cluster
             child_cluster_ids = parse_member_clusters(current_cluster['member_clusters'])
