@@ -279,7 +279,7 @@ def display_full_example(full_examples_df: pd.DataFrame, example_id: str):
         st.write(example_row['input_answer'])
 
 def main():
-    st.title("🔍 Hierarchical Cluster Explorer")
+    st.title("Hierarchical Cluster Explorer")
     st.markdown("Navigate through your cluster hierarchy and explore conversation examples")
     
     init_session_state()
@@ -334,7 +334,7 @@ def main():
     
     # Main area
     if not st.session_state.data_loaded:
-        st.info("👆 Please upload your CSV files in the sidebar to get started")
+        st.info("Uppload your CSV files in the sidebar to get started")
         
         # Show example of expected data format
         with st.expander("Expected Data Format"):
