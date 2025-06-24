@@ -148,9 +148,9 @@ def display_cluster_table(df: pd.DataFrame, level: int, colour_assignments: Dict
             
             # Metrics in last column
             with col3:
-                st.metric("Size", cluster_row['size'])
+                st.metric("Lower-level clusters", cluster_row['size'])
                 if 'total_size' in cluster_row and pd.notna(cluster_row['total_size']) and cluster_row['total_size'] != cluster_row['size']:
-                    st.metric("Total", cluster_row['total_size'])
+                    st.metric("Chat LangChain conversations", cluster_row['total_size'])
             
             # Explore button
             if st.button(f"Explore →", key=f"cluster_{level}_{cluster_id}", use_container_width=True):
