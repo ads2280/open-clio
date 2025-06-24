@@ -333,7 +333,7 @@ def main():
         st.markdown("- Click 'View Full' for complete conversations")
     
     # Show the navigation breadcrumb
-    display_breadcrumb()
+    #display_breadcrumb()
     display_parent_stack()
     
     dataframes = st.session_state.dataframes
