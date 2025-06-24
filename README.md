@@ -14,7 +14,11 @@
 ## Usage
 
 ```python
-python base_cluster.py
+# Cluster
+uv run base_cluster.py
+
+# Visualise
+uv run streamlist run visualise.py
 ```
 
 ## Development
