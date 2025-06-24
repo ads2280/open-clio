@@ -18,7 +18,7 @@
 uv run base_cluster.py
 
 # Visualise
-uv run streamlist run visualise.py
+uv run streamlit run visualise.py
 ```
 
 ## Development
