@@ -143,8 +143,7 @@ def display_cluster_table(df: pd.DataFrame, level: int, colour_assignments: Dict
                 if pd.notna(cluster_row['description']):
                     # Clean up the description text
                     description = str(cluster_row['description']).replace('<summary>', '').replace('</summary>', '').strip()
-                    shortened = description[:200] + "..." if len(description) > 200 else description
-                    st.write(shortened)
+                    st.write(description)
             
             # Metrics in last column
             with col3:
@@ -343,6 +342,13 @@ def main():
             current_data = dataframes[f'level_{current_level}']
             current_cluster = current_data[current_data['cluster_id'] == current_cluster_id].iloc[0]
             
+            # show parent cluster info
+            st.markdown(f"### Parent Cluster: {current_cluster['name']}")
+            if pd.notna(current_cluster['description']):
+                description = str(current_cluster['description']).replace('<summary>', '').replace('</summary>', '').strip()
+                st.markdown(f"*{description}*")
+            st.markdown("---")
+
             # Find the children of this cluster
             child_cluster_ids = parse_member_clusters(current_cluster['member_clusters'])
             
