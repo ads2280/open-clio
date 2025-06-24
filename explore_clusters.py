@@ -8,7 +8,6 @@ from typing import Dict, List, Optional, Tuple
 # Page configuration
 st.set_page_config(
     page_title="Cluster Explorer",
-    page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -39,73 +38,143 @@ def load_csv_files(files_dict: Dict[str, any]) -> Dict[str, pd.DataFrame]:
     
     return dataframes
 
+# Parse member_clusters from list str to int
 def parse_member_clusters(member_str: str) -> List[int]:
-    """Parse the member_clusters string to extract cluster IDs"""
     if pd.isna(member_str) or member_str == '':
         return []
     
     try:
-        # Handle numpy array string format
         if 'np.int32' in member_str:
-            # Extract numbers from numpy array format
             numbers = re.findall(r'np\.int32\((\d+)\)', member_str)
             return [int(num) for num in numbers]
         else:
-            # Try to parse as regular list
             return ast.literal_eval(member_str)
     except:
         return []
 
-def get_cluster_colors(num_clusters: int) -> List[str]:
-    """Generate distinct colors for clusters"""
-    colors = [
-        "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", 
-        "#DDA0DD", "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E9",
-        "#F8C471", "#82E0AA", "#F1948A", "#85C1E9", "#F4D03F"
+def get_distinct_colors():
+    """Get 8 distinct colors for the top-level clusters"""
+    return [
+        "#DC2626",  # Red
+        "#059669",  # Green  
+        "#2563EB",  # Blue
+        "#7C3AED",  # Purple
+        "#EA580C",  # Orange
+        "#0891B2",  # Cyan
+        "#BE185D",  # Pink
+        "#65A30D",  # Lime
     ]
-    return colors[:num_clusters] if num_clusters <= len(colors) else colors * (num_clusters // len(colors) + 1)
 
-def display_cluster_table(df: pd.DataFrame, level: int, color_map: Dict[int, str]):
-    """Display clusters in a formatted table with click functionality"""
+def create_color_variations(base_color, num_variations):
+    """
+    Take one color and create multiple lighter versions of it
+    For example: red -> red, light red, lighter red, very light red
+    """
+    variations = []
+    
+    # Remove the # symbol and convert hex to RGB numbers
+    hex_color = base_color.replace('#', '')
+    red = int(hex_color[0:2], 16)    # First 2 characters
+    green = int(hex_color[2:4], 16)  # Next 2 characters  
+    blue = int(hex_color[4:6], 16)   # Last 2 characters
+    
+    for i in range(num_variations):
+        if i == 0:
+            # First one is the original color
+            variations.append(base_color)
+        else:
+            # Make each subsequent color lighter by mixing with white (255)
+            lightness = 0.3 + (i * 0.4 / (num_variations - 1))
+            
+            new_red = int(red + (255 - red) * lightness)
+            new_green = int(green + (255 - green) * lightness)
+            new_blue = int(blue + (255 - blue) * lightness)
+            
+            # Convert back to hex
+            lighter_color = f"#{new_red:02x}{new_green:02x}{new_blue:02x}"
+            variations.append(lighter_color)
+    
+    return variations
+
+def assign_colors_to_clusters(dataframes, max_level):
+    """
+    Assign colors so that:
+    - Each top-level cluster gets a distinct color (red, green, blue, etc.)
+    - Each child cluster gets a lighter shade of its parent's color
+    """
+    color_assignments = {}
+    distinct_colors = get_distinct_colors()
+    
+    # Get the top-level clusters
+    top_level_clusters = dataframes[f'level_{max_level}']
+    
+    # Go through each top-level cluster
+    for i, (_, cluster_row) in enumerate(top_level_clusters.iterrows()):
+        cluster_id = cluster_row['cluster_id']
+        
+        # Pick a distinct color for this top-level cluster
+        base_color = distinct_colors[i % len(distinct_colors)]
+        color_assignments[(max_level, cluster_id)] = base_color
+        
+        # Now find all the children of this cluster and give them lighter shades
+        if max_level > 0:  # Only if there are child levels
+            child_ids = parse_member_clusters(cluster_row['member_clusters'])
+            
+            if child_ids:
+                # Create lighter variations of the parent color
+                child_colors = create_color_variations(base_color, len(child_ids))
+                
+                # Assign each child a shade of the parent color
+                for child_index, child_id in enumerate(child_ids):
+                    color_assignments[(max_level - 1, child_id)] = child_colors[child_index]
+    
+    return color_assignments
+
+def display_cluster_table(df: pd.DataFrame, level: int, color_assignments: Dict):
+    """Display clusters with their hierarchical colors"""
     st.subheader(f"Level {level} Clusters")
     
-    # Create clickable table
-    for idx, row in df.iterrows():
-        cluster_id = row['cluster_id']
-        color = color_map.get(cluster_id, "#E8E8E8")
+    # Show each cluster as a row
+    for _, cluster_row in df.iterrows():
+        cluster_id = cluster_row['cluster_id']
         
-        # Create a colored container for each cluster
+        # Look up the color for this cluster
+        cluster_color = color_assignments.get((level, cluster_id), "#9CA3AF")
+        
+        # Create the visual layout
         with st.container():
             col1, col2, col3 = st.columns([1, 6, 2])
             
+            # Color circle in first column
             with col1:
-                # Color indicator
                 st.markdown(f"""
-                <div style="width: 30px; height: 30px; background-color: {color}; 
+                <div style="width: 30px; height: 30px; background-color: {cluster_color}; 
                            border-radius: 50%; margin: 10px;"></div>
                 """, unsafe_allow_html=True)
             
+            # Cluster name and description in middle column
             with col2:
-                st.markdown(f"**{row['name']}**")
-                if pd.notna(row['description']):
-                    # Clean up description (remove <summary> tags if present)
-                    description = str(row['description']).replace('<summary>', '').replace('</summary>', '').strip()
-                    st.write(description[:200] + "..." if len(description) > 200 else description)
+                st.markdown(f"**{cluster_row['name']}**")
+                if pd.notna(cluster_row['description']):
+                    # Clean up the description text
+                    description = str(cluster_row['description']).replace('<summary>', '').replace('</summary>', '').strip()
+                    shortened = description[:200] + "..." if len(description) > 200 else description
+                    st.write(shortened)
             
+            # Metrics in last column
             with col3:
-                st.metric("Size", row['size'])
-                if 'total_size' in row and pd.notna(row['total_size']) and row['total_size'] != row['size']:
-                    st.metric("Total", row['total_size'])
+                st.metric("Size", cluster_row['size'])
+                if 'total_size' in cluster_row and pd.notna(cluster_row['total_size']) and cluster_row['total_size'] != cluster_row['size']:
+                    st.metric("Total", cluster_row['total_size'])
             
-            # Make the whole container clickable
+            # Explore button
             if st.button(f"Explore →", key=f"cluster_{level}_{cluster_id}", use_container_width=True):
-                navigate_to_cluster(level, cluster_id, row['name'])
+                navigate_to_cluster(level, cluster_id, cluster_row['name'])
             
             st.divider()
 
 def navigate_to_cluster(level: int, cluster_id: int, cluster_name: str):
-    """Navigate to a specific cluster"""
-    # Add to navigation path
+    """Add this cluster to our navigation path and refresh the page"""
     st.session_state.navigation_path.append({
         'level': level,
         'cluster_id': cluster_id,
@@ -116,55 +185,62 @@ def navigate_to_cluster(level: int, cluster_id: int, cluster_name: str):
     st.rerun()
 
 def display_breadcrumb():
-    """Display navigation breadcrumb"""
+    """Show where we are in the navigation"""
     if not st.session_state.navigation_path:
         return
     
-    # Create breadcrumb
-    breadcrumb_items = ["🏠 Home"]
-    for item in st.session_state.navigation_path:
-        breadcrumb_items.append(f"Level {item['level']}: {item['name'][:30]}...")
+    # Build the breadcrumb trail
+    trail = ["🏠 Home"]
+    for step in st.session_state.navigation_path:
+        short_name = step['name'][:30] + "..." if len(step['name']) > 30 else step['name']
+        trail.append(f"Level {step['level']}: {short_name}")
     
-    breadcrumb_text = " → ".join(breadcrumb_items)
-    st.markdown(f"**Navigation:** {breadcrumb_text}")
+    breadcrumb = " → ".join(trail)
+    st.markdown(f"**Navigation:** {breadcrumb}")
     
     # Back button
     if st.button("← Back"):
         if st.session_state.navigation_path:
+            # Remove the last step
             st.session_state.navigation_path.pop()
+            
+            # Update our current position
             if st.session_state.navigation_path:
-                last_item = st.session_state.navigation_path[-1]
-                st.session_state.current_level = last_item['level']
-                st.session_state.selected_cluster = last_item['cluster_id']
+                last_step = st.session_state.navigation_path[-1]
+                st.session_state.current_level = last_step['level']
+                st.session_state.selected_cluster = last_step['cluster_id']
             else:
+                # Back to the beginning
                 st.session_state.current_level = None
                 st.session_state.selected_cluster = None
         st.rerun()
 
 def display_examples(examples_df: pd.DataFrame, cluster_id: int):
-    """Display examples for a base cluster"""
+    """Show the actual conversation examples for a base cluster"""
+    # Filter to just the examples in this cluster
     cluster_examples = examples_df[examples_df['base_cluster_id'] == cluster_id]
     
     st.subheader(f"Examples in Cluster (Total: {len(cluster_examples)})")
     
-    # Pagination
-    items_per_page = 10
-    total_pages = (len(cluster_examples) - 1) // items_per_page + 1
+    # Set up pagination if there are many examples
+    examples_per_page = 10
+    total_pages = (len(cluster_examples) - 1) // examples_per_page + 1
     
     if total_pages > 1:
         page = st.selectbox("Page", range(1, total_pages + 1)) - 1
     else:
         page = 0
     
-    start_idx = page * items_per_page
-    end_idx = min(start_idx + items_per_page, len(cluster_examples))
+    # Calculate which examples to show
+    start = page * examples_per_page
+    end = min(start + examples_per_page, len(cluster_examples))
     
-    # Display examples
-    for idx, row in cluster_examples.iloc[start_idx:end_idx].iterrows():
-        with st.expander(f"Example {idx + 1}: {row['example_id'][:8]}..."):
+    # Show the examples for this page
+    for i, (_, example_row) in enumerate(cluster_examples.iloc[start:end].iterrows()):
+        with st.expander(f"Example {start + i + 1}: {example_row['example_id'][:8]}..."):
             st.write("**Summary:**")
-            st.write(row['summary'])
-            st.write(f"**Example ID:** `{row['example_id']}`")
+            st.write(example_row['summary'])
+            st.write(f"**Example ID:** `{example_row['example_id']}`")
 
 def main():
     st.title("🔍 Hierarchical Cluster Explorer")
@@ -172,22 +248,23 @@ def main():
     
     init_session_state()
     
-    # Sidebar for file upload
+    # Sidebar for uploading files
     with st.sidebar:
         st.header("📁 Data Upload")
         
-        # File uploaders
+        # Required files
         examples_file = st.file_uploader("Examples CSV", type=['csv'], key="examples")
         level_0_file = st.file_uploader("Level 0 Clusters CSV", type=['csv'], key="level0")
         level_1_file = st.file_uploader("Level 1 Clusters CSV", type=['csv'], key="level1")
         
-        # Optional higher levels
+        # Optional additional levels
         st.markdown("**Optional Higher Levels:**")
         level_2_file = st.file_uploader("Level 2 Clusters CSV", type=['csv'], key="level2")
         level_3_file = st.file_uploader("Level 3 Clusters CSV", type=['csv'], key="level3")
         
+        # Load button
         if st.button("Load Data"):
-            files_dict = {
+            files = {
                 'examples': examples_file,
                 'level_0': level_0_file,
                 'level_1': level_1_file,
@@ -195,15 +272,21 @@ def main():
                 'level_3': level_3_file
             }
             
-            # Filter out None files
-            files_dict = {k: v for k, v in files_dict.items() if v is not None}
+            # Remove empty file slots
+            files = {name: file for name, file in files.items() if file is not None}
             
-            if 'examples' in files_dict and 'level_0' in files_dict:
+            # Check we have the minimum required files
+            if 'examples' in files and 'level_0' in files:
                 try:
-                    dataframes = load_csv_files(files_dict)
+                    # Load all the CSV files
+                    dataframes = load_csv_files(files)
                     st.session_state.dataframes = dataframes
                     st.session_state.data_loaded = True
-                    st.session_state.max_level = max([int(k.split('_')[1]) for k in dataframes.keys() if 'level_' in k])
+                    
+                    # Figure out what the highest level is
+                    level_numbers = [int(name.split('_')[1]) for name in dataframes.keys() if 'level_' in name]
+                    st.session_state.max_level = max(level_numbers)
+                    
                     st.success("Data loaded successfully!")
                     st.rerun()
                 except Exception as e:
@@ -211,56 +294,53 @@ def main():
             else:
                 st.warning("Please upload at least the Examples and Level 0 files")
     
-    # Main content area
+    # Main area
     if not st.session_state.data_loaded:
         st.info("👆 Please upload your CSV files in the sidebar to get started")
         return
     
-    # Display breadcrumb navigation
+    # Show the navigation breadcrumb
     display_breadcrumb()
     
     dataframes = st.session_state.dataframes
     
-    # Determine what to show based on navigation state
+    # Create the color scheme once and store it
+    if 'color_assignments' not in st.session_state:
+        st.session_state.color_assignments = assign_colors_to_clusters(dataframes, st.session_state.max_level)
+    
+    color_assignments = st.session_state.color_assignments
+    
+    # Decide what to show based on where we are in the navigation
     if not st.session_state.navigation_path:
-        # Show highest level clusters
+        # We're at the top - show the highest level clusters
         max_level = st.session_state.max_level
-        df = dataframes[f'level_{max_level}']
-        colors = get_cluster_colors(len(df))
-        color_map = {}
-        for idx, (_, row) in enumerate(df.iterrows()):
-            color_map[row['cluster_id']] = colors[idx % len(colors)]
-        display_cluster_table(df, max_level, color_map)
+        top_level_data = dataframes[f'level_{max_level}']
+        display_cluster_table(top_level_data, max_level, color_assignments)
     
     else:
-        # We're navigating down the hierarchy
-        current_item = st.session_state.navigation_path[-1]
-        current_level = current_item['level']
-        current_cluster_id = current_item['cluster_id']
+        # We've navigated somewhere - figure out what to show
+        current_step = st.session_state.navigation_path[-1]
+        current_level = current_step['level']
+        current_cluster_id = current_step['cluster_id']
         
         if current_level == 0:
-            # We're at base level - show examples
+            # We're at the bottom level - show individual examples
             display_examples(dataframes['examples'], current_cluster_id)
         else:
-            # Show child clusters
-            current_df = dataframes[f'level_{current_level}']
-            current_row = current_df[current_df['cluster_id'] == current_cluster_id].iloc[0]
+            # We're at a middle level - show the child clusters
+            current_data = dataframes[f'level_{current_level}']
+            current_cluster = current_data[current_data['cluster_id'] == current_cluster_id].iloc[0]
             
-            # Parse member clusters
-            member_cluster_ids = parse_member_clusters(current_row['member_clusters'])
+            # Find the children of this cluster
+            child_cluster_ids = parse_member_clusters(current_cluster['member_clusters'])
             
-            if member_cluster_ids:
-                # Get child level data
+            if child_cluster_ids:
+                # Get the data for the child level
                 child_level = current_level - 1
-                child_df = dataframes[f'level_{child_level}']
-                child_clusters = child_df[child_df['cluster_id'].isin(member_cluster_ids)]
+                child_data = dataframes[f'level_{child_level}']
+                children = child_data[child_data['cluster_id'].isin(child_cluster_ids)]
                 
-                colors = get_cluster_colors(len(child_clusters))
-                color_map = {}
-                for idx, (_, row) in enumerate(child_clusters.iterrows()):
-                    color_map[row['cluster_id']] = colors[idx % len(colors)]
-                
-                display_cluster_table(child_clusters, child_level, color_map)
+                display_cluster_table(children, child_level, color_assignments)
             else:
                 st.warning("No child clusters found for this selection")
 
