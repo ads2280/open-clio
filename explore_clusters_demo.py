@@ -287,8 +287,7 @@ def display_full_example(full_examples_df: pd.DataFrame, example_id: str):
 
 def main():
     st.title("OpenCLIO for Chat LangChain - Demo")
-    st.markdown("Explore 200 LangChain conversations organized into hierarchical clusters")
-    st.markdown("You can navigate from 4 high-level topic areas down to 14 specific clusters, then view individual conversation examples.")
+    st.markdown("Explore 200 LangChain conversations organized into hierarchical clusters. You can navigate from 4 high-level topic areas down to 14 specific clusters, then to conversation summaries, and finally to full Chat LangChain conversations.")
     
     init_session_state()
     
