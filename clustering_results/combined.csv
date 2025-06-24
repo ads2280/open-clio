@@ -1,0 +1,286 @@
+id,parent_id,level,summary,name
+0,13.0,0,"build an AI-powered engineering data question-answering system that can retrieve and summarize relevant information from a knowledge graph, and rewrite user questions into Cypher queries to search the graph.",
+1,12.0,0,"implement a voice chat application with the ability to select audio input and output devices, detect voice versus noise, and log relevant information about the voice packets and client connections.",
+2,4.0,0,"build a system that can access and analyze data from a construction cost management system, and generate code to retrieve and display relevant information based on the user's natural language queries.",
+3,2.0,0,learn how to implement long-term memory in an AI chatbot using LangChain and LangGraph.,
+4,6.0,0,"help resolve an issue with installing or running the LangGraph CLI, which the user is unable to access due to a ""command not found"" error.",
+5,13.0,0,"implement a system that can answer questions about engineering data stored in a graph knowledge base, by extracting relevant information and rewriting the user's question into a query against the graph.",
+6,4.0,0,help them develop a full-stack web application based on agentic AI technology.,
+7,5.0,0,"help them understand how to disable or configure the ""think mode"" feature when using the ChatOpenAI interface to access the Qwen3 model.",
+8,2.0,0,provide Python code to chat with a website using LangChain and OpenAI.,
+9,3.0,0,"learn how to switch from a development to a production deployment type on the LangGraph platform, as the deployment type cannot be changed after creation.",
+10,13.0,0,"build an AI-powered system that can understand natural language queries, retrieve relevant information from a knowledge base, and generate code to access engineering data, with the ability to handle multiple rounds of interaction and provide results to the user.",
+11,10.0,0,"help them understand how to properly configure a LangChain agent to pass arguments to tool functions with the correct data types, rather than as strings.",
+12,10.0,0,"explain what a ""tool node"" is, which is a component in the LangChain ecosystem that allows language models to interact with external tools and APIs.",
+13,2.0,0,"provide information about the book ""Generative AI with LangChain - Second Edition: Build production-ready LLM applications and advanced agents using Python, LangChain, and LangGraph"".",
+14,10.0,0,"understand how to trace their use of LangChain and LangGraph in LangSmith, and whether they need to use the .invoke() method specifically or if there are other ways to enable tracing.",
+15,7.0,0,"help debug an issue with their multi-agent system, where the supervisor agent is not properly passing the full state to the sub-agents, causing the system to not respond as expected.",
+16,0.0,0,"understand the licensing and organizational structure options for a cloud-based AI platform, including the ability to create multiple organizations and workspaces to separate different customer solutions.",
+17,2.0,0,learn how to create and use a chat model in LangChain from a simple string input. The assistant provides detailed steps and references on how to do this.,
+18,13.0,0,"build an AI-powered system that can understand natural language queries, retrieve relevant information from a knowledge base, and generate code to access engineering data, while providing safeguards and error handling.",
+19,7.0,0,learn how to properly format docstrings for their tools.,
+20,4.0,0,help them understand how to use Chroma DB and find the most appropriate text fragments to include in a response. The user is also seeking guidance on how to structure their agent tools and handle variables in their tool functions.,
+21,7.0,0,"help with word puzzles and number-to-words conversions, particularly related to currency amounts in Indian Rupees.",
+22,2.0,0,convert a Pydantic model into a structured output JSON schema that can be used with LangChain's structured output features.,
+23,0.0,0,"help refactor and debug their multi-agent AI system architecture, specifically related to routing and state handling between the supervisor and sub-agents.",
+24,12.0,0,"help set up and integrate an MCP (Model Context Protocol) client within a FastAPI application, and to provide feedback and suggestions for improving the implementation.",
+25,9.0,0,update a single value in the configuration called 'github_url' to 'None' while also performing the normal actions of updating the state.,
+26,2.0,0,"learn how to run a machine learning model locally on their laptop using the Ollama platform, including steps for installation, model selection, pulling, running, and integrating with LangChain.",
+27,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to load content from a webpage and its child links.,
+28,4.0,0,explain Retrieval Augmented Generation (RAG) techniques and how the LangGraph framework can be used to implement them.,
+29,7.0,0,check the weather for a specific location.,
+30,6.0,0,understand the support and features available in LangChain and LangGraph for Postgres database and related management.,
+31,5.0,0,consolidate and provide feedback on two emails related to a political campaign for the Congolese diaspora in Senegal.,
+32,4.0,0,"create an agent that can take natural language as input and generate SQL queries as output, in order to query a CSV file and act as a retrieval-augmented generation (RAG) system.",
+33,2.0,0,"help them fix an issue with their code that is not working, despite having access to an available API. The user is seeking guidance on the proper way to use the Ollama chat model in LangChain.",
+34,2.0,0,"provide sample code and guidance on how to use FAISS in LangChain to create embeddings, persist them to disk, and load them back as a retriever for a question-answering chain.",
+35,10.0,0,"help resolve an issue with the ChatOpenAI tool not implementing the bind_tools() method, and to provide guidance on how to properly bind tools and pass arguments to the tool functions when using the ChatOpenAI model.",
+36,10.0,0,"find a way to disable or turn off a ""think mode"" or multi-step reasoning functionality in a language model (LLM) interface, as the user is not able to determine how to do so based on the information provided.",
+37,8.0,0,help troubleshoot and fix issues with retrieving data from Neo4j and Qdrant databases. The user is encountering errors and needs assistance to get the data retrieval working correctly.,
+38,6.0,0,"get guidance on how to install and set up LangChain, a machine learning library, including which additional packages to install and how to create a virtual environment in Visual Studio Code on Windows.",
+39,3.0,0,understand how to set up multiple organizations within a self-hosted LangSmith deployment on a VPC like AWS.,
+40,13.0,0,"build an AI-powered engineering data question-answering agent that can retrieve and analyze information from a knowledge graph, and rewrite user questions into Cypher queries to search the graph.",
+41,5.0,0,"store their conversational states in a MongoDB database, and to be able to invoke the assistant's graph with a specific thread ID to maintain persistent conversation history.",
+42,8.0,0,"help troubleshoot and diagnose issues with the code and setup of the retrievers, including the Neo4j and Qdrant components, as well as the LangGraph node functions and state handling.",
+43,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to load content from a web page and its child links recursively.,
+44,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to load content from a webpage and its child links recursively.,
+45,0.0,0,"explain the instructions for deploying and configuring agents for the Open Agent Platform, including options for local development and production deployment.",
+46,9.0,0,"provide an example of how to integrate a third-party embedding model with a custom base URL in TypeScript, using the LangChain library.",
+47,4.0,0,explain the syntax of a Retrieval-Augmented Generation (RAG) chain used for AI response generation.,
+48,2.0,0,"get help on how to use DeepSeek, a specific AI model, with LangChain in the TypeScript programming language.",
+49,6.0,0,determine the latest recommended version of the LangChain library to install.,
+50,7.0,0,help debug an issue with a multi-agent system that is not producing the expected response when invoked. The user is seeking guidance on how to identify and fix the problem.,
+51,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to load content from a webpage and its child links.,
+52,7.0,0,help debug and improve a tool that calculates discounts based on the current price and a proposed price from the customer. The user is seeking guidance on how to properly handle and validate the input variables for this tool.,
+53,3.0,0,"learn about the LangGraph framework, including how to quickly create a new LangGraph project, the components and structure of a LangGraph project, and the use of the Handoffs mechanism in LangGraph's multi-agent system.",
+54,2.0,0,"learn how the LangSmith platform works, including its key features and capabilities for building, monitoring, evaluating, and managing production-grade large language model applications.",
+55,0.0,0,help resolve an issue where the agent keeps calling a tool function with string parameters instead of properly typed arguments. The user is seeking guidance on how to configure the agent and tools to pass structured arguments rather than strings.,
+56,0.0,0,"learn how agents can internally perform multihop reasoning steps, such as through the use of tool-calling agents, planning and task decomposition, and memory management.",
+57,10.0,0,"understand how the language model knows which tool to request a call for, based on the tool definitions and schemas provided to the model.",
+58,4.0,0,help create a summary for each stored procedure or database function in a Postgres database.,
+59,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to load content from a webpage and its child links recursively.,
+60,3.0,0,"learn how to manage multi-user applications using LangGraph, including how to handle authentication, authorization, thread and session management, and state persistence for concurrent, isolated interactions between multiple users.",
+61,13.0,0,"build an AI-powered system that can answer questions about engineering data and knowledge graphs, using large language models and graph databases.",
+62,7.0,0,"provide guidance on how to handle or respond to a potentially suspicious or fraudulent advertisement or message, particularly regarding unsolicited loan offers.",
+63,9.0,0,learn how to inherit from the OpenAIEmbeddings class in TypeScript and add support for a custom base URL.,
+64,4.0,0,"provide a comprehensive structure for prompt tuning when analyzing a database, including key components, an example structured prompt, best practices, and validation techniques.",
+65,3.0,0,"help set up and configure an MCP (Model Context Protocol) client, including how to connect to multiple MCP servers, and whether the LangGraph platform is needed for this use case. The user also asks for suggestions on improving the current implementation of the MCP client.",
+66,5.0,0,"find information on how to turn off or disable a ""think mode"" feature, but the assistant does not have enough information to provide a specific answer.",
+67,6.0,0,"get help with installing and using the LangChain library, including understanding the different installation options and recommended packages to install.",
+68,4.0,0,help design a language model agent that can retrieve and answer questions based on local PDF documents.,
+69,6.0,0,"get help with installing and using the LangChain library, including understanding the different installation options, recommended packages, and version requirements.",
+70,4.0,0,learn how to use SingleStoreDB as a tool for an agentic Retrieval Augmented Generation (RAG) system in LangChain.,
+71,11.0,0,"understand how to access the state of a graph after invoking it, including both the immediate state after invocation and the saved state checkpoints if persistence is enabled.",
+72,6.0,0,"get help with installing and setting up LangChain, a framework for building applications that use large language models, in the PyCharm IDE. The user is looking for step-by-step guidance on how to create a new project, install the necessary dependencies, and start developing with LangChain in PyCharm.",
+73,7.0,0,"integrate a tenant_id field into the API model, while ensuring the agent does not need to reason about or provide that field. The user is concerned that adding the tenant_id to the model may obligate the agent to handle it, which the user does not want.",
+74,12.0,0,"help them implement a voice chat application with features like voice activity detection, packet logging, and client-side noise reduction, without using additional libraries.",
+75,12.0,0,"implement a voice chat server and client that can distinguish between voice and noise packets, without using any external libraries.",
+76,5.0,0,"extract the user's state from the conversation and update the memory, as part of a larger system for calling an AI agent.",
+77,0.0,0,"help develop a full-stack web application based on agentic AI technology, including the backend implementation using LangGraph and the frontend integration.",
+78,7.0,0,"modify the code to automatically pass a tenant ID from the FastAPI request body to the database and knowledge source tools, without requiring the agent to explicitly provide the tenant ID.",
+79,10.0,0,"learn how to define a tool for LangGraph, a machine learning framework. The assistant provides a step-by-step guide on creating and integrating custom tools into LangGraph workflows.",
+80,6.0,0,provide sample Python code for sanitizing text with excessive newline characters and whitespace before using the RecursiveCharacterTextSplitter from LangChain.,
+81,6.0,0,get help installing and using the LangChain library in Visual Studio Code. The user had some initial confusion about the installation process but the assistant was able to clarify the steps and provide the recommended version to install.,
+82,11.0,0,transform the provided code and ensure that the graph fully completes all steps before retrieving the last message.,
+83,3.0,0,"learn how to manage a multi-used application using the LangGraph system, including details on multi-agent systems, agent communication and control flow, graph-based representation, deployment and management, and observability.",
+84,6.0,0,learn how to load a Chroma vector store from a persistent directory in LangChain.,
+85,2.0,0,"help them understand how to use the LangGraph library and its features, such as injecting state and configuration into tool functions, in order to build a more robust and modular conversational agent.",
+86,3.0,0,"understand the best way to set up and manage multiple organizations within the LangSmith platform, both for self-hosted and cloud-based deployments. The user is looking for documentation evidence and guidance on this capability.",
+87,6.0,0,"understand how to properly use LangChain's text splitting functionality, including how to preserve metadata when splitting documents into chunks and how to configure the chunk overlap.",
+88,6.0,0,get help choosing the right virtual environment to use for installing and using the LangChain library in Windows using Visual Studio Code.,
+89,4.0,0,"build a system that can generate code to access data from a construction cost management system, understand user queries, and execute the generated code, while handling errors and supporting a multi-step interactive dialogue.",
+90,7.0,0,"help solve a word puzzle or find a common 7-letter word related to the provided clues of ""ring,"" ""tools,"" ""forest,"" ""light,"" and ""glass.""",
+91,11.0,0,"learn how to access and work with the state in a LangGraph application, including defining the state schema, accessing the state in node functions, and retrieving the updated state after graph execution.",
+92,4.0,0,"implement a feature in their LLM application where the model asks clarification questions before answering any questions, to improve the accuracy and relevance of the responses.",
+93,7.0,0,"help debug and improve the code for an agent that handles price objections for a cleaning service, specifically related to capturing and using the ""precio_actual"" and ""precio_ofrecido"" variables correctly.",
+94,2.0,0,"learn how to use a swarm-agent system in LangChain, specifically how to create individual agents, combine them into a swarm, and invoke the swarm to handle complex tasks collaboratively.",
+95,1.0,0,learn how to use the RecursiveUrlLoader to load content from a web page.,
+96,11.0,0,validate whether the provided code is valid per LangGraph and to suggest improvements or optimizations to the code.,
+97,2.0,0,"learn about prompt templates in LangChain, a framework for building applications with large language models. The user is interested in understanding the different types of prompt templates and how to use them.",
+98,0.0,0,"have the AI agent use the actual images (not just the image URLs) returned by a tool, before generating its response to the tool message.",
+99,11.0,0,"learn how to create and call a subgraph in LangGraph, specifically to replace an eval_node with an eval_subgraph.",
+100,6.0,0,get help with LangChain.,
+101,7.0,0,provide instructions on how to create a Kafka topic.,
+102,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to load content from a webpage and its child links.,
+103,6.0,0,"learn how to implement a project similar to the LangChain RecursiveUrlLoader, including the architecture, key technical points, and sample code.",
+104,12.0,0,"modify the server code to add logging of client connections and received voice packets, and to implement a simple voice activity detection mechanism on the client side to avoid sending noise from the microphone.",
+105,7.0,0,provide help or assistance with something.,
+106,4.0,0,"help implement a flexible structured output solution for different language models and providers, using a strategy pattern design approach.",
+107,3.0,0,understand the best way to separate different customer solutions when using the SaaS/cloud version or self-hosted version of the LangSmith platform. The user is interested in understanding how to set up multiple organizations and workspaces to isolate resources and access controls for different customers or solutions.,
+108,4.0,0,"learn how to use SingleStoreDB as a tool for an agentic Retrieval Augmented Generation (RAG) system in LangChain. The user is looking for guidance on setting up the SingleStore integration, building the vector store and retriever, creating an agent for multi-step retrieval and reasoning, and implementing the overall RAG workflow.",
+109,2.0,0,"learn how to implement long-term memory capabilities in an AI chatbot, using approaches like LangGraph persistence, vector stores, and various memory management techniques.",
+110,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to load content from a web page and its child links.,
+111,5.0,0,"help generate unique and viral AI prompts that people can copy and paste into chatbots, while avoiding repetitive or similar outputs. The user is looking for strategies to increase the diversity and novelty of the generated prompts.",
+112,4.0,0,"understand how to build and deploy a knowledge graph on an MCP (Model Context Protocol) server for use in a Retrieval-Augmented Generation (RAG) application, and how to integrate that with an MCP client.",
+113,0.0,0,"help configure and troubleshoot a tool-calling agent, including how to handle structured output, logging, and multiple tool invocations.",
+114,6.0,0,provide instructions on how to install the LangChain library in Visual Studio Code.,
+115,4.0,0,help design a LLM agent that can retrieve and answer questions based on PDF files in a local directory.,
+116,3.0,0,"understand the deployment options and configuration requirements for running a LLM application, including a MCP server, on the LangGraph Platform's Developer plan and on the user's own GCP server.",
+117,5.0,0,"understand how to update the RunnableConfig object from within a node function that returns a state, without mutating the RunnableConfig directly.",
+118,11.0,0,"learn how to handle long input in the LangGraph system, specifically by using dynamic example selection techniques to avoid exceeding the context length limit.",
+119,6.0,0,"understand the new version of the LLMChain class in the LangChain library, and how to use the recommended replacement approach with RunnableSequence and the LangChain Expression Language (LCEL).",
+120,0.0,0,"help design a multi-agent system architecture where a supervisor routes to different agent nodes in a graph, and handles cases where one agent needs to structure unstructured input before passing it on to other agents.",
+121,13.0,0,"build an AI-powered engineering data question-answering agent that can retrieve and analyze information from a knowledge graph, rewrite user questions, and provide answers.",
+122,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to load content from a webpage and its child links.,
+123,2.0,0,"learn how to handle long input text in a LangGraph system, specifically by returning a message to the front-end when the input exceeds a certain length threshold.",
+124,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to load content from a web page and its child links.,
+125,6.0,0,provide guidance on how to avoid memory leaks when using the `loader.load()` function in LangChain.,
+126,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to load content from a webpage and its child links.,
+127,7.0,0,"help with evaluating and calculating a discount on a service, and to provide guidance on how to structure the agent's tool-calling process to handle this task effectively.",
+128,9.0,0,"help them use a third-party embedding model with a different base URL in TypeScript, as the provided LangChain documentation does not have a direct example for this scenario.",
+129,11.0,0,"learn how to create and call a subgraph in LangGraph, specifically to replace an existing node with an evaluation subgraph that runs multiple parallel nodes and a merge node.",
+130,7.0,0,"help resolve issues related to pricing and discounts for a service, specifically for cleaning septic tanks and chambers. The user is seeking guidance on how to handle objections to the pricing and negotiate a suitable discount.",
+131,0.0,0,"integrate a multi-agent system that can handle database queries, document management, and semantic search, with the ability to route requests to the appropriate agent based on the user's input.",
+132,7.0,0,"provide specific Indian stock market news, analysis, and trading recommendations for a future date, which the assistant is unable to fulfill due to lack of access to the required information sources.",
+133,3.0,0,"learn how to build an MCP (Model Context Protocol) server with multiple tools, and how LangGraph can be useful for that purpose. The user is also interested in understanding the API system and integration with LangGraph Platform, as well as the approach for deploying an MCP client on the LangGraph Platform.",
+134,5.0,0,"generate unique, viral AI prompts that people can copy and paste directly into chatbots like ChatGPT or Claude, with the goal of creating prompts that sound like insider knowledge and encourage specific outcomes like building a business or growing a following.",
+135,2.0,0,help them handle a complex JSON output structure using the StructuredOutputParser in LangChain.,
+136,0.0,0,help design a flexible and maintainable system for handling different structured output methods across various AI models and providers.,
+137,3.0,0,"learn how to build and manage a multi-user application using the LangGraph platform, including details on authentication, authorization, user isolation, state management, and deployment.",
+138,2.0,0,learn how to run a large language model locally on their laptop using the Ollama platform and integrate it with the LangChain framework.,
+139,7.0,0,"improve the docstrings for a set of Python functions that interact with the Apollo API. The user wants to make the docstrings more consistent, detailed, and in line with best practices.",
+140,7.0,0,"help debug an issue with a multi-agent system that is not properly handling a tenant ID configuration, which is preventing the system from accessing the necessary database tables and schemas.",
+141,10.0,0,"understand why they need to convert their vector store into a retriever in LangChain, and the assistant provides a detailed explanation of the key reasons and benefits.",
+142,6.0,0,"help with installing and using the LangChain framework, including how to set it up in the PyCharm IDE.",
+143,3.0,0,"learn how to deploy their LLM applications on a GCP server using the Developer plan of the LangGraph platform, including how to leverage the LangGraph Studio for rapid agent development and how to handle the limitations of the Developer plan.",
+144,4.0,0,"get help with formatting and manipulating data in SQL, including how to pivot data, extract month information from dates, and format durations as HH:MM:SS.",
+145,0.0,0,"help design a multi-agent system architecture with a supervisor that routes to different agent nodes, and handle cases where one agent needs to structure unstructured input before passing it on.",
+146,3.0,0,learn how to manage multiple independent conversation threads or sessions for multiple users in a multi-user application using LangGraph.,
+147,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to load content from a web page and its child links.,
+148,0.0,0,"explain how to deploy and run AI agents using the LangGraph framework, including options for local development and cloud deployment.",
+149,3.0,0,understand the capabilities and differences between LangGraph (for creating MCP servers) and LangChain's MCP adapters (for creating MCP clients).,
+150,3.0,0,"understand the differences between organizations and workspaces in the LangSmith platform, and how they can be used to separate and manage different customer solutions.",
+151,7.0,0,"provide code to use Azure AI Search with Role-Based Access Control (RBAC) authentication, as the user is not authorized to use an API key.",
+152,13.0,0,"build a system that can understand natural language questions about engineering data, rewrite them into structured queries, generate and execute Python code to access the relevant data, and handle errors in the code execution. The system should also support pre-input questions and provide a conversational interface.",
+153,10.0,0,"help them create and use tools in LangChain/LangGraph without using the @tool decorator, and to handle the state of those tools manually. The user is interested in having more control over the logic and state within the tools.",
+154,11.0,0,"explain the key concepts of State, Node, and Edge in the LangGraph framework.",
+155,0.0,0,help resolve an issue with connecting the state of the supervisor to the sub-graphs (react agents) in their code implementation. The user is seeking guidance on how to properly pass the full relevant state to the sub-agents.,
+156,3.0,0,"determine the best way to separate different solutions for different customers when using LangChain, a framework for building LLM applications.",
+157,6.0,0,learn how to edit or update values in a RunnableConfig from within a node in LangChain.,
+158,7.0,0,help convert color filters from one format (Egret engine) to another format (Cocos engine) by providing specific examples and a general conversion function.,
+159,8.0,0,help with retrieving relevant data from Neo4j and Qdrant databases for marketing-related queries. The user is facing issues with the retrieval and filtering of the data.,
+160,0.0,0,"have the AI agent ""see"" an image, rather than just receive the image URL, in order to process the actual image data rather than just the URL string.",
+161,0.0,0,"help design and implement an architecture for a multi-agent system using the Model Context Protocol (MCP) and LangGraph platform, including how to handle large knowledge graphs and integrate them into the system.",
+162,4.0,0,"build a system that can access and query a Neo4j graph database, generate relevant code, and engage in a multi-turn dialogue to understand and fulfill the user's queries.",
+163,12.0,0,"modify the server code to log client connections and received packets without using the ""logging"" library, so that the format of the logged information can be easily edited in the future.",
+164,0.0,0,"learn how to perform multihop reasoning steps in their agentic architecture, using techniques like tool-calling agents, planning and task decomposition, memory management, and structured outputs.",
+165,12.0,0,"determine how to distinguish between audio packets containing voice versus noise from the client's microphone, using techniques like amplitude thresholding or voice activity detection (VAD) libraries.",
+166,4.0,0,"implement a feature in their LLM application where the model asks clarification questions before answering any questions, in order to improve the accuracy of the responses.",
+167,10.0,0,learn how to print which tools are being called and how to control the flow for specific tools when using LangGraph and ToolNode.,
+168,10.0,0,"help with implementing a tool-calling agent in LangChain and LangGraph, including how to handle state management and tool invocation. The user is specifically interested in using the InjectedState feature to pass state to tools automatically.",
+169,7.0,0,"find a way to load all JSON files from a directory, as the standard JSONLoader does not support this functionality out of the box. The user is looking for a solution to this problem.",
+170,4.0,0,"build a system that can access and analyze data from a Neo4j graph database, and generate code to retrieve and process that data based on the user's natural language queries. The system should also be able to understand the user's intent and rewrite the queries into more technical language.",
+171,2.0,0,"learn how to use the DeepSeek integration in LangChain, including installing the package, obtaining API credentials, instantiating the chat model, and chaining it with prompt templates.",
+172,11.0,0,help debug an error in their code related to creating a subgraph in the LangGraph library.,
+173,6.0,0,explain the architecture and flow diagram of the RecursiveUrlLoader in the LangChain library.,
+174,2.0,0,"learn about the LangChain framework, which is a tool for developing applications powered by large language models.",
+175,6.0,0,"get help installing and using the LangChain library, including understanding the meaning of certain command-line options and package dependencies.",
+176,6.0,0,get help with LangChain.,
+177,10.0,0,"understand who is responsible for calling tools in the LangChain tool calling paradigm. The assistant explains that the language model decides when to call a tool, but the application is responsible for executing the tool.",
+178,0.0,0,"help develop a full-stack web application based on agentic AI technology. The user is interested in the key components, capabilities, and technical features of such an application.",
+179,8.0,0,help diagnose and resolve issues with retrieving data from a Neo4j database and a Qdrant vector store. The user is encountering errors related to the format of the query input and the handling of the retrieval results.,
+180,5.0,0,"help generate unique and engaging viral AI prompts that users can copy and paste into chatbots, while avoiding repetitive or similar outputs. The user is looking for strategies to make the prompt generation more dynamic and diverse.",
+181,2.0,0,"understand how to identify when a LangGraph agent is composing its final response to the user, such as by monitoring the agent's state transitions, using post-model hooks, leveraging structured output, observing streaming outputs, or inserting human-in-the-loop interruptions.",
+182,10.0,0,"help resolve an issue with a tool function in a machine learning framework, where the tool arguments are being passed as strings instead of the expected structured data. The user is seeking guidance on how to properly define and bind the tool to the chat model to ensure the model generates the correct structured tool call arguments.",
+183,0.0,0,"help resolve an issue where the agent is passing string parameters to a tool function instead of structured data, and to provide guidance on how to properly define and bind tools to the chat model to avoid this problem.",
+184,3.0,0,"understand how to deploy an MCP (Model Context Protocol) client on the LangGraph platform, and how the API system would work in that scenario, compared to the user's previous experience with FastAPI.",
+185,6.0,0,"understand the meaning and usage of the term ""state.get"" in the context of LangChain and LangGraph.",
+186,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to recursively load content from a webpage and its child links.,
+187,7.0,0,help fix an issue with some code related to processing contract data and generating flags. The user provides the code and asks the assistant to help address the various problems in it.,
+188,7.0,0,provide information about Samsung Electronics' first quarter 2025 breakeven point.,
+189,2.0,0,"show them how to use LangSmith, an observability tool for large language models, with Python code in a LangChain application.",
+190,6.0,0,"clarify the correct way to install the LangChain library, specifically whether to use the generic ""pip install langchain"" command or the more specific ""pip install ""langchain>=0.3,<0.4"""" command.",
+191,13.0,0,"build a system that can understand natural language queries, retrieve relevant information from a knowledge base, and generate code to access engineering data. The system should also handle errors and support multiple rounds of interaction with the user.",
+192,5.0,0,"learn about a standard way to compress the message history of a MessageState, specifically using the LangGraph library.",
+193,10.0,0,learn how to help the language model effectively select the right tool to use in LangChain. The user is seeking strategies and techniques to improve the model's ability to choose the appropriate tool for a given task or query.,
+194,2.0,0,learn how to run a large language model locally on their laptop using the Ollama platform and LangChain integration.,
+195,2.0,0,"help with questions and problems related to LangChain, a framework for building applications that use large language models.",
+196,10.0,0,"help configure and optimize the use of a tool-calling agent in LangChain, particularly around managing multiple tool invocations, handling structured input/output, and controlling the flow of the agent's reasoning process.",
+197,1.0,0,learn how to use the RecursiveUrlLoader in LangChain to load content from a webpage and its child links.,
+198,8.0,0,help debug and improve the performance of the AI system's data retrieval and relevance filtering functionality. The user is seeking guidance on how to address issues with the Neo4j and Qdrant retrievers not returning expected results.,
+199,9.0,0,learn how to pass additional metadata to the AzureChatOpenAI model in their code.,
+0,0.0,1,"These statements focused
+on building multi-agent architectures and implementing tool-calling capabilities,
+including supervisor routing, structured data handling, and state management. The
+requests centered around developing full-stack applications with agentic AI
+technology, specifically using frameworks like LangGraph for backend logic and
+agent coordination.","Build multi-agent system with supervisor routing and tool
+integration"
+1,0.0,1,"Users sought
+instructions for using LangChain's RecursiveUrlLoader to extract content from web
+pages and their linked child pages. The requests consistently focused on learning
+how to implement recursive web scraping functionality specifically using the
+RecursiveUrlLoader component.","Learn to use LangChain's
+RecursiveUrlLoader for web scraping"
+2,1.0,1,"A collection of users sought information about developing applications with the 
+LangChain framework, focusing particularly on specific technical components like 
+prompt templates, embeddings, local model integration via Ollama, memory 
+persistence, and structured output formats. The questions centered around 
+understanding and implementing core LangChain features and integrations rather than 
+deployment, multi-agent architectures, or IDE setup that appeared in contrasting 
+examples.",Learn core LangChain features and technical integrations
+3,2.0,1,"The users sought guidance on managing multi-user LangGraph/LangSmith applications, focusing on organizations, workspaces, and authentication across both cloud and self-hosted deployments. They specifically wanted to understand deployment configurations and resource isolation for MCP servers and clients, including setting up multiple organizations and handling state management for different customers.",Deploy and configure multi-tenant LangGraph applications with organization isolation
+4,3.0,1,"Queries focused on
+building data-aware AI systems that could retrieve, analyze, and generate
+responses using various databases (SQL, Neo4j, vector stores) and document sources
+(PDFs). The emphasis was specifically on implementing Retrieval Augmented
+Generation (RAG) techniques and creating agents that could engage in multi-turn
+dialogues while accessing and processing structured data.","Build RAG-enabled database agents for structured data retrieval and
+analysis"
+5,1.0,1,"The user sought advice on building and modifying components for chatbots and AI
+systems, including managing conversation states, configuring model features, and
+generating viral prompts. Specifically, they wanted help with technical aspects
+like disabling ""think mode"", storing states in MongoDB, and creating engaging
+prompts for others to copy and paste into chatbots.",Help build chatbot components and generate viral AI prompts
+6,2.0,1,"Users sought assistance
+with basic LangChain setup and installation across different IDEs like PyCharm and
+VS Code, including dependency management and environment configuration. The
+questions focused on fundamental library setup tasks rather than actual LangChain
+usage or implementation details.","Install and configure LangChain in
+development environments"
+7,0.0,1,"Users sought help debugging and
+improving code related to various business logic implementations, including price
+calculations, multi-agent systems, and API integrations. The requests focused on
+specific technical issues like handling variables, configuring tenant IDs, and
+formatting documentation, along with some basic utility queries about weather and
+word puzzles.",Debug business logic code and fix technical implementation issues
+8,3.0,1,"The users experienced
+issues with retrieving and filtering data from Neo4j and Qdrant databases across
+multiple cases. They specifically needed help troubleshooting errors related to
+query input, data retrieval results, and overall performance of these database
+systems.",Debug Neo4j and Qdrant database retrieval issues
+9,1.0,1,"Users sought help
+with modifying base URLs, configuring metadata, and customizing settings for
+embedding models and API endpoints in TypeScript implementations of LangChain.
+The questions focused specifically on technical implementation details like
+inheriting from OpenAIEmbeddings, integrating third-party embeddings, and
+updating configuration values.","Customize LangChain API endpoints and embedding model
+configurations"
+10,0.0,1,"These statements
+focused on understanding and implementing tool calling functionality in LangChain
+and LangGraph, including proper configuration of tool arguments, binding tools to
+models, and controlling tool selection and invocation flow. Users specifically
+sought help with technical implementation details like data type handling,
+tracing, state management, and improving the model's ability to select and use
+the right tools.",Configure and debug LangChain/LangGraph tool calling and binding
+11,0.0,1,"Users sought assistance with core LangGraph development concepts and implementation details, specifically focusing on state management, subgraph creation, and debugging graph execution flows. The questions centered around technical implementation aspects like accessing graph state, creating subgraphs, handling long inputs, and understanding fundamental LangGraph components like nodes and edges.",Help implement and debug core LangGraph development features
+12,1.0,1,"The statements
+focused on implementing voice chat functionality, specifically around
+distinguishing voice from noise packets, managing audio devices, and logging
+connection/packet data. The implementations emphasized doing this without external
+libraries, including voice activity detection, noise reduction, and custom packet
+logging.",Implement voice chat with noise detection and packet logging
+13,3.0,1,"The statements
+requested help building an AI-powered system that could understand natural
+language questions about engineering data stored in knowledge graphs and convert
+them into structured queries. The system needed to retrieve and analyze
+information from the graphs, generate executable code, handle errors, and support
+conversational interactions.","Build AI system to query engineering knowledge graphs using natural
+language"
+0,,2,"<summary>Users sought assistance with implementing, configuring, and debugging various aspects of LangChain and LangGraph development, particularly focusing on multi-agent systems, tool integration, and core features. The technical support requests covered web scraping, business logic debugging, and system configuration tasks related to these frameworks.",Debug and implement LangChain/LangGraph development features and tools
+1,,2,"<summary>
+Users requested assistance with implementing and customizing LangChain features, including chatbot components, API endpoints, and voice integration capabilities. The requests focused on technical aspects like embedding models, noise detection, packet logging, and generating viral AI prompts.",Build LangChain applications with chat and voice features
+2,,2,"<summary>
+Users sought assistance with installing, configuring, and deploying LangChain and LangGraph applications in various environments. The requests focused specifically on setting up multi-tenant applications with organizational isolation and configuring development environments for LangChain implementations.",Configure and deploy LangChain/LangGraph applications with isolation
+3,,2,"<summary>
+Users sought assistance building and debugging AI-powered database systems, particularly focused on knowledge retrieval and natural language querying of structured data. The requests centered on implementing RAG capabilities, troubleshooting graph/vector databases, and creating interfaces for engineering knowledge bases.",Build AI database agents for structured knowledge retrieval
