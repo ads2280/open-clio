@@ -264,7 +264,7 @@ def display_examples(examples_df: pd.DataFrame, cluster_id: int):
     
     # Show the examples for this page
     for i, (original_index, example_row) in enumerate(cluster_examples.iloc[start:end].iterrows()):
-        example_id = example_row['example_id']
+        example_id = example_row['id']
         
         with st.container():
             col1, col2 = st.columns([8, 2])
