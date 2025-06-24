@@ -204,6 +204,23 @@ def display_parent_stack():
     if not st.session_state.navigation_path:
         return
     
+    # Back button at the top
+    if st.button("← Back"):
+        if st.session_state.navigation_path:
+            # Remove the last step
+            st.session_state.navigation_path.pop()
+            
+            # Update our current position
+            if st.session_state.navigation_path:
+                last_step = st.session_state.navigation_path[-1]
+                st.session_state.current_level = last_step['level']
+                st.session_state.selected_cluster = last_step['cluster_id']
+            else:
+                # Back to the beginning
+                st.session_state.current_level = None
+                st.session_state.selected_cluster = None
+        st.rerun()
+    
     # Show each parent in the navigation path
     for step in st.session_state.navigation_path:
         st.markdown(f"**L={step['level']}: {step['name']}**")
