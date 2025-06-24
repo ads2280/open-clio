@@ -275,9 +275,7 @@ def display_examples(examples_df: pd.DataFrame, cluster_id: int):
             
             with col2:
                 if st.button("View Full", key=f"view_full_{example_id}", use_container_width=True):
-                    # Store both the example_id and the original row index for matching
                     st.session_state.selected_example_id = example_id
-                    st.session_state.selected_example_index = original_index
                     st.session_state.view_mode = 'full_example'
                     st.rerun()
             
