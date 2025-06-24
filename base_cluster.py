@@ -1,11 +1,12 @@
 from langsmith import Client
 import anthropic
-from typing import Dict, Any, List, Tuple
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
-import math, time, random
+import math
+import time
+import random
 from save_results import save_results
 
 client = Client()
@@ -17,7 +18,7 @@ summaries = []
 example_ids = []
 
 for example in examples:
-    summaries.append(example.outputs["request"]) #i.e. request facet
+    summaries.append(example.outputs["request"])  # i.e. request facet
     example_ids.append(example.id)
 
 print(f"Loaded {len(summaries)} summaries")
@@ -30,21 +31,16 @@ print(f"embeddings generated, shape: {embeddings.shape}")
 # find k - can choose better method later or manually set
 k = math.sqrt(len(summaries))
 k = int(k)
-print(f'starting to cluster, using K={k} clusters for {len(summaries)} summaries')
+print(f"starting to cluster, using K={k} clusters for {len(summaries)} summaries")
 
 # cluster embeddings with k-means
-kmeans = KMeans(
-    n_clusters=k,
-    random_state=42,
-    n_init=10,
-    max_iter=300
-)
+kmeans = KMeans(n_clusters=k, random_state=42, n_init=10, max_iter=300)
 
 cluster_labels = kmeans.fit_predict(embeddings)
 silhouette = silhouette_score(embeddings, cluster_labels)
-print(f"silhouette score: {silhouette}") # want highest poss score
+print(f"silhouette score: {silhouette}")  # want highest poss score
 
-print(f'cluster labels: {cluster_labels}')
+print(f"cluster labels: {cluster_labels}")
 
 # generate descriptions for all clusters
 cluster_info = {}
@@ -54,36 +50,42 @@ for cluster_id in unique_clusters:
     cluster_mask = cluster_labels == cluster_id
     cluster_summaries = [summaries[i] for i in range(len(summaries)) if cluster_mask[i]]
 
-    #Get contrastive examples
+    # Get contrastive examples
     cluster_embeddings = embeddings[cluster_mask]
     cluster_centroid = np.mean(cluster_embeddings, axis=0)
-    
+
     # get distances from centroid to all non-cluster points
     non_cluster_mask = ~cluster_mask
     non_cluster_embeddings = embeddings[non_cluster_mask]
-    non_cluster_summaries = [summaries[i] for i in range(len(summaries)) if not cluster_mask[i]]
-    
+    non_cluster_summaries = [
+        summaries[i] for i in range(len(summaries)) if not cluster_mask[i]
+    ]
+
     # calculate distances to centroid
     distances = np.linalg.norm(non_cluster_embeddings - cluster_centroid, axis=1)
-    
+
     # get closest non-cluster summaries
-    n_contrastive = 50 # make this a param later
+    n_contrastive = 50  # make this a param later
     nearest_indices = np.argsort(distances)[:n_contrastive]
     contrastive_summaries = [non_cluster_summaries[i] for i in nearest_indices]
-    
+
     # use to generate the description
-    max_summaries = 15 #arbitrary, to avoid token lims, can change later
+    max_summaries = 15  # arbitrary, to avoid token lims, can change later
     if len(cluster_summaries) > max_summaries:
-        cluster_sample = np.random.choice(cluster_summaries, max_summaries, replace=False).tolist()  
+        cluster_sample = np.random.choice(
+            cluster_summaries, max_summaries, replace=False
+        ).tolist()
     else:
-        cluster_sample = cluster_summaries 
+        cluster_sample = cluster_summaries
 
     if len(contrastive_summaries) > max_summaries:
-        contrastive_sample = np.random.choice(contrastive_summaries, max_summaries, replace=False).tolist()
+        contrastive_sample = np.random.choice(
+            contrastive_summaries, max_summaries, replace=False
+        ).tolist()
     else:
         contrastive_sample = contrastive_summaries
 
-    cluster_sample = "\n".join(cluster_sample) # list to str
+    cluster_sample = "\n".join(cluster_sample)  # list to str
     contrastive_sample = "\n".join(contrastive_sample)
 
     prompt = f"""You are tasked with summarizing a group of related statements into a short, precise, and accurate description and name. Your goal is to create a concise summary that captures the essence of these statements and distinguishes them from other similar groups of statements.
@@ -114,10 +116,10 @@ For context, here are statements from nearby groups that are NOT part of the gro
 Do not elaborate beyond what you say in the tags. Remember to analyze both the statements and the 
 contrastive statements carefully to ensure your summary and name accurately represent the specific 
 group while distinguishing it from others."""
-    
-    starter = f"""Sure, I will provide a clear, precise, and accurate summary and name for
+
+    starter = """Sure, I will provide a clear, precise, and accurate summary and name for
 this cluster. I will be descriptive and assume neither good nor bad faith. Here
-is the summary, which I will follow with the name: <summary>""" 
+is the summary, which I will follow with the name: <summary>"""
 
     try:
         response = claude.messages.create(
@@ -125,21 +127,21 @@ is the summary, which I will follow with the name: <summary>"""
             max_tokens=500,
             temperature=1.0,
             messages=[
-                {
-                    "role": "user", 
-                    "content": prompt},
-                {
-                    "role": "assistant", 
-                    "content": starter}
-                ]
+                {"role": "user", "content": prompt},
+                {"role": "assistant", "content": starter},
+            ],
         )
 
         content = response.content[0].text
-        summary_end = content.find('</summary>')
-        summary = content[:summary_end].strip() if summary_end != -1 else "Summary generation failed"
+        summary_end = content.find("</summary>")
+        summary = (
+            content[:summary_end].strip()
+            if summary_end != -1
+            else "Summary generation failed"
+        )
 
-        name_start = content.find('<name>') + 6
-        name_end = content.find('</name>')
+        name_start = content.find("<name>") + 6
+        name_end = content.find("</name>")
         name = content[name_start:name_end].strip()
 
     except Exception as e:
@@ -148,10 +150,10 @@ is the summary, which I will follow with the name: <summary>"""
         summary = "Error generating description"
 
     cluster_info[cluster_id] = {
-        'name': name,
-        'description': summary,
-        'size': len(cluster_summaries),
-        'summaries': cluster_summaries[:10] # just first 10 for inspection
+        "name": name,
+        "description": summary,
+        "size": len(cluster_summaries),
+        "summaries": cluster_summaries[:10],  # just first 10 for inspection
     }
 
     print(f"Cluster {cluster_id}: {name} ({len(cluster_summaries)} items)")
@@ -161,110 +163,113 @@ is the summary, which I will follow with the name: <summary>"""
 print("updating dataset with cluster assignments...")
 updates = []
 for i, (example_id, cluster_id) in enumerate(zip(example_ids, cluster_labels)):
-    cluster_name = cluster_info[cluster_id]['name']
-    example = examples[i] 
-    
+    cluster_name = cluster_info[cluster_id]["name"]
+    example = examples[i]
+
     update = {
         "id": example_id,
         "metadata": example.metadata,
         "inputs": example.inputs,
         "outputs": {
-            "request": example.outputs["request"],  # keep existing request, can change this later when generating csvs
+            "request": example.outputs[
+                "request"
+            ],  # keep existing request, can change this later when generating csvs
             "cluster_id": int(cluster_id),
             "cluster_name": cluster_name,
-        }
+        },
     }
     updates.append(update)
 
-# update all 
+# update all
 client.update_examples(dataset_name="chat-langchain-v3-selected", updates=updates)
 print("Dataset updated!")
 
 # print results
-print(f"\nResults:")
+print("\nResults:")
 for cluster_id, info in cluster_info.items():
     print(f"\nCluster {cluster_id}: {info['name']}")
     print(f"Description: {info['description']}")
     print(f"Size: {info['size']} conversations")
     print(f"Sample summaries: {info['summaries'][:3]}")
 
-print(f"base cluster complete!")
+print("base cluster complete!")
 
 
 # starting hierarchical clustering (G7)
 # load base cluster names from ls
 
-hierarchy = {
-        'level_0': cluster_info,
-        'max_level': 0
-}
+hierarchy = {"level_0": cluster_info, "max_level": 0}
 current_clusters = cluster_info
 n_base = len(current_clusters)
 
 # various variable declarations to change later/make configurable
-ktop = 4 # desired no. of top level clusters, 10 in clio
-L = 2 # no of levels, 3 in clio
-avg_clusters_per_neighborhood = 8 # 40 in clio
-m_nearest = 3 #nearest clusters, 10 in clio
+ktop = 4  # desired no. of top level clusters, 10 in clio
+L = 2  # no of levels, 3 in clio
+avg_clusters_per_neighborhood = 8  # 40 in clio
+m_nearest = 3  # nearest clusters, 10 in clio
 
 # clio's geometric progression algo for no. of clusters at each level
 if L == 2:
-    level_sizes = [ktop] #for 2 levels, just base to top
-else: 
-    ratio = (ktop/n_base) ** (1/ (L-1) )
+    level_sizes = [ktop]  # for 2 levels, just base to top
+else:
+    ratio = (ktop / n_base) ** (1 / (L - 1))
     level_sizes = []
     for level in range(1, L):
-        n_level = int(n_base * (ratio ** level))
-        level_sizes.append(max(2, n_level)) # make sure atleast 2 clusters
+        n_level = int(n_base * (ratio**level))
+        level_sizes.append(max(2, n_level))  # make sure atleast 2 clusters
     level_sizes.append(ktop)
 
 print(f"planned hierarchy sizes: {[n_base] + level_sizes}")
 
-#build hierarchy lvl by lvl
-for level in range(1,L):
-    if len(current_clusters) <= level_sizes[level-1]:
-        print(f"stopping at level {level-1} bc only {len(current_clusters)} left")
+# build hierarchy lvl by lvl
+for level in range(1, L):
+    if len(current_clusters) <= level_sizes[level - 1]:
+        print(f"stopping at level {level - 1} bc only {len(current_clusters)} left")
         break
 
-    print(f'creating level {level}, targetting {level_sizes[level-1]} clusters')
+    print(f"creating level {level}, targetting {level_sizes[level - 1]} clusters")
 
     # 1) embed clusters
     cluster_names_descriptions = []
     cluster_ids = []
 
     for cluster_id, info in current_clusters.items():
-        #combine name and description for embedding
+        # combine name and description for embedding
         text = f"{info['name']}: {info['description']}"
         cluster_names_descriptions.append(text)
         cluster_ids.append(cluster_id)
 
     print(f"embedding {len(cluster_ids)} cluster descriptions...")
-    cluster_embeddings = embedder.encode(cluster_names_descriptions, show_progress_bar=True)
-
+    cluster_embeddings = embedder.encode(
+        cluster_names_descriptions, show_progress_bar=True
+    )
 
     # 2) generate neighbourhoods using k-means
-    k_neighborhoods = max(1, len(current_clusters)//avg_clusters_per_neighborhood)
-    print(f'making {k_neighborhoods} neighborhoods with approx {avg_clusters_per_neighborhood} clusters per neighborhood')
+    k_neighborhoods = max(1, len(current_clusters) // avg_clusters_per_neighborhood)
+    print(
+        f"making {k_neighborhoods} neighborhoods with approx {avg_clusters_per_neighborhood} clusters per neighborhood"
+    )
 
     kmeans = KMeans(
-        n_clusters = k_neighborhoods,
-        random_state = 42,
-        n_init=10,
-        max_iter=300
+        n_clusters=k_neighborhoods, random_state=42, n_init=10, max_iter=300
     )
-    
+
     neighborhood_labels = kmeans.fit_predict(cluster_embeddings)
 
     # 3) now propose new clusters for each neighborhood
     proposed = []
-    target_clusters = level_sizes[level-1]
-    clusters_per_neighborhood = max(1, target_clusters // k_neighborhoods) 
+    target_clusters = level_sizes[level - 1]
+    clusters_per_neighborhood = max(1, target_clusters // k_neighborhoods)
 
     for neighborhood_id in range(k_neighborhoods):
         neighborhood_mask = neighborhood_labels == neighborhood_id
-        neighborhood_cluster_ids = [cluster_ids[i] for i in range(len(cluster_ids)) if neighborhood_mask[i]]
-        neighborhood_clusters = {cid: current_clusters[cid] for cid in neighborhood_cluster_ids}
-        
+        neighborhood_cluster_ids = [
+            cluster_ids[i] for i in range(len(cluster_ids)) if neighborhood_mask[i]
+        ]
+        neighborhood_clusters = {
+            cid: current_clusters[cid] for cid in neighborhood_cluster_ids
+        }
+
         # find nearest m clusters outside this nbh for contrastive
         neighborhood_embeddings = cluster_embeddings[neighborhood_mask]
         neighborhood_centroid = np.mean(neighborhood_embeddings, axis=0)
@@ -272,12 +277,18 @@ for level in range(1,L):
         outside_mask = ~neighborhood_mask
         if np.any(outside_mask):
             outside_embeddings = cluster_embeddings[outside_mask]
-            distances = np.linalg.norm(outside_embeddings - neighborhood_centroid, axis=1)
-            nearest_indices = np.argsort(distances)[:m_nearest] #was manually set to 3
-            outside_cluster_ids = [cluster_ids[i] for i in range(len(cluster_ids)) if outside_mask[i]]
+            distances = np.linalg.norm(
+                outside_embeddings - neighborhood_centroid, axis=1
+            )
+            nearest_indices = np.argsort(distances)[:m_nearest]  # was manually set to 3
+            outside_cluster_ids = [
+                cluster_ids[i] for i in range(len(cluster_ids)) if outside_mask[i]
+            ]
             nearest_outside_ids = [outside_cluster_ids[i] for i in nearest_indices]
-            nearest_outside_clusters = {cid: current_clusters[cid] for cid in nearest_outside_ids}
-        else: #nothing outside this cluster - updated min clusteres to 2 so shouldn't happen
+            nearest_outside_clusters = {
+                cid: current_clusters[cid] for cid in nearest_outside_ids
+            }
+        else:  # nothing outside this cluster - updated min clusteres to 2 so shouldn't happen
             nearest_outside_clusters = {}
 
         # now actually ready to propose clusters
@@ -286,7 +297,9 @@ for level in range(1,L):
         # build cluster list for prompt
         cluster_list = []
         for cluster_id, info in neighborhood_clusters.items():
-            cluster_list.append(f"<cluster>{info['name']}: {info['description']}</cluster>")
+            cluster_list.append(
+                f"<cluster>{info['name']}: {info['description']}</cluster>"
+            )
 
         cluster_list_text = "\n".join(cluster_list)
 
@@ -357,78 +370,87 @@ the following format:
 Focus on creating meaningful, distinct, and precise (but not overly specific
 ) higher-level cluster names that could encompass multiple sub-clusters.
 """
-        #criteria should be made a variable
+        # criteria should be made a variable
         # above, figure out where we need variables and where we don't
         # later we should put all these prompts in the prompt hub
 
-        proposing_assistant_prompt = f""" I understand. I'll evaluate the clusters and provide higher-level
+        proposing_assistant_prompt = """ I understand. I'll evaluate the clusters and provide higher-level
 cluster names that could encompass multiple sub-clusters.
 
 <scratchpad>"""
-        
+
         try:
             response = claude.messages.create(
-                model="claude-3-5-sonnet-20241022", #update?
+                model="claude-3-5-sonnet-20241022",  # update?
                 max_tokens=1000,
-                temperature=1.0, # in clio
+                temperature=1.0,  # in clio
                 messages=[
-                    {
-                        "role":"user",
-                        "content": proposing_user_prompt
-                    },
-                    { 
-                        "role": "assistant",
-                        "content": proposing_assistant_prompt
-                    }
-                ]
+                    {"role": "user", "content": proposing_user_prompt},
+                    {"role": "assistant", "content": proposing_assistant_prompt},
+                ],
             )
             content = response.content[0].text
             print(f"Claude response for neighborhood {neighborhood_id}:")
             print(content[:200] + "..." if len(content) > 200 else content)
 
             proposed_names = []
-            #extract answer section
-            if '<answer>' in content and '</answer>' in content:
-                ans_start = content.find('<answer>')
-                ans_end = content.find('</answer>')
+            # extract answer section
+            if "<answer>" in content and "</answer>" in content:
+                ans_start = content.find("<answer>")
+                ans_end = content.find("</answer>")
                 ans_text = content[ans_start:ans_end].strip()
 
                 # we should have a numbered list to parse, for ex:
                 # 1. [First higher-level cluster name]
                 # 2. [Second higher-level cluster name]
                 # 3. [Third higher-level cluster name]
-                for line in ans_text.split('\n'):
+                for line in ans_text.split("\n"):
                     line = line.strip()
-                    if line and (line[0].isdigit() or line.startswith('-')): # not sure if numbering or bullet
-                        name = line.split('.',1)[1].strip() if '.' in line else line.strip()
-                        if name.startswith('[') and name.endswith(']'):
-                            name=name[1:-1]
-                        proposed_names.append(name) # we now have proposed_names
+                    if line and (
+                        line[0].isdigit() or line.startswith("-")
+                    ):  # not sure if numbering or bullet
+                        name = (
+                            line.split(".", 1)[1].strip()
+                            if "." in line
+                            else line.strip()
+                        )
+                        if name.startswith("[") and name.endswith("]"):
+                            name = name[1:-1]
+                        proposed_names.append(name)  # we now have proposed_names
             if not proposed_names:
-                print(f"Warning: No names extracted from Claude response for neighborhood {neighborhood_id}")
+                print(
+                    f"Warning: No names extracted from Claude response for neighborhood {neighborhood_id}"
+                )
                 # Create fallback names based on the actual clusters in this neighborhood
                 if len(neighborhood_clusters) > 0:
-                    sample_names = [info['name'] for info in list(neighborhood_clusters.values())[:2]]
-                    proposed_names = [f"Handle {' and '.join(sample_names[:2])} related requests"]
+                    sample_names = [
+                        info["name"]
+                        for info in list(neighborhood_clusters.values())[:2]
+                    ]
+                    proposed_names = [
+                        f"Handle {' and '.join(sample_names[:2])} related requests"
+                    ]
                 else:
                     proposed_names = [f"Cluster Group {neighborhood_id}"]
 
             proposed.extend(proposed_names)
             print(f"Neighborhood {neighborhood_id} proposed: {proposed_names}")
 
-        except Exception as e:
-            print(f"Error, could not propose clusters for neighborhood {neighborhood_id}")
-                        
-    
+        except Exception:
+            print(
+                f"Error, could not propose clusters for neighborhood {neighborhood_id}"
+            )
 
     # 4) deduplicate across neighborhoods
     print(f"Deduplicating {len(proposed)} proposed clusters")
     if len(proposed) == 0:
         print("ERROR: No clusters were proposed!")
     if len(proposed) <= clusters_per_neighborhood:
-        deduplicated = proposed #
+        deduplicated = proposed  #
     else:
-        cluster_text = "\n".join([f"<cluster>{name}</cluster>" for name in proposed]) #for prompt
+        cluster_text = "\n".join(
+            [f"<cluster>{name}</cluster>" for name in proposed]
+        )  # for prompt
         deduplicating_user_prompt = f""" You are tasked with deduplicating a list of cluster names into a
 smaller set of distinct cluster names. Your goal is to create
 approximately {clusters_per_neighborhood} relatively distinct clusters that best
@@ -459,8 +481,9 @@ there is a cluster that describes each of the provided clusters.
 7. If you create new names for any clusters, make sure they are clear,
 concise, and reflective of the contents they represent.
 8. You do not need to come up with exactly {clusters_per_neighborhood} names, but aim
-for no less than {int(clusters_per_neighborhood * 0.5)} and no more than {int(
-clusters_per_neighborhood * 1.5)}. Within this range, output as many clusters as you
+for no less than {int(clusters_per_neighborhood * 0.5)} and no more than {
+            int(clusters_per_neighborhood * 1.5)
+        }. Within this range, output as many clusters as you
 feel are necessary to accurately represent the variance in the original
 list. Avoid outputting duplicate or near-duplicate clusters.
 9. Do not hesitate to include clusters that describe socially harmful or
@@ -506,32 +529,32 @@ they represent.
                 max_tokens=1000,
                 temperature=1.0,
                 messages=[
-                    {
-                        "role": "user",
-                        "content": deduplicating_user_prompt
-                    },
-                    {
-                        "role": "assistant",
-                        "content": deduplicating_assistant_prompt
-                    }
-                ]
+                    {"role": "user", "content": deduplicating_user_prompt},
+                    {"role": "assistant", "content": deduplicating_assistant_prompt},
+                ],
             )
             content = response.content[0].text
 
             deduplicated = []
-            #extract answer section
+            # extract answer section
             if "<answer>" in content and "</answer>" in content:
                 ans_start = content.find("<answer>") + 8
                 ans_end = content.find("</answer>")
                 ans_text = content[ans_start:ans_end].strip()
 
                 # numbered list like above to parse
-                for line in ans_text.split('\n'):
+                for line in ans_text.split("\n"):
                     line = line.strip()
-                    if line and (line[0].isdigit() or line.startswith('-')):
+                    if line and (line[0].isdigit() or line.startswith("-")):
                         # remove and clean up
-                        name = line.split('.',1)[1].strip() if '.' in line else line.strip()
-                        if name.startswith('[') and name.endswith(']'): #can I assume it always does or no?
+                        name = (
+                            line.split(".", 1)[1].strip()
+                            if "." in line
+                            else line.strip()
+                        )
+                        if name.startswith("[") and name.endswith(
+                            "]"
+                        ):  # can I assume it always does or no?
                             name = name[1:-1]
                         deduplicated.append(name)
             else:
@@ -541,18 +564,20 @@ they represent.
         except Exception as e:
             print(f"Error deduplicating clusters: {e}")
             deduplicated = proposed[:target_clusters]
-        
+
     print(f"Final deduplicated clusters: {deduplicated}")
 
-        # 5) assign to new fit higher level cluster
-    print(f"Assigning {len(current_clusters)} clusters to {len(deduplicated)} higher-level clusters...")
+    # 5) assign to new fit higher level cluster
+    print(
+        f"Assigning {len(current_clusters)} clusters to {len(deduplicated)} higher-level clusters..."
+    )
     assignments = {}
-        # Clio randomly shuffles higher level cluster names to avoid order bias (what?)
-    shuffled = deduplicated.copy() #copy of higher level names
+    # Clio randomly shuffles higher level cluster names to avoid order bias (what?)
+    shuffled = deduplicated.copy()  # copy of higher level names
     random.shuffle(shuffled)
-    higher_level_text = '\n'.join([f'<cluster>{name}</cluster>' for name in shuffled])
-        
-    for cluster_id, cluster_info in current_clusters.items(): 
+    higher_level_text = "\n".join([f"<cluster>{name}</cluster>" for name in shuffled])
+
+    for cluster_id, cluster_info in current_clusters.items():
         assign_user_prompt = f"""
 You are tasked with categorizing a specific cluster into one of the provided
 higher-level clusters for observability, monitoring, and content
@@ -598,20 +623,20 @@ Then, provide your answer in the following format:
 clusters above, without enclosing <cluster> tags]
 </answer>
 """
-        assign_assistant_prompt = f"""
+        assign_assistant_prompt = """
 I understand. I'll evaluate the specific cluster and assign it to
 the most appropriate higher-level cluster."""
-            
+
         assign_user_prompt_2 = f"""
 Now, here is the specific cluster to categorize:
 <specific_cluster>
-Name: {cluster_info['name']}
-Description: {cluster_info['description']}
+Name: {cluster_info["name"]}
+Description: {cluster_info["description"]}
 </specific_cluster>
 
 Based on this information, determine the most appropriate higher-level
 cluster and provide your answer as instructed."""
-        assign_assistant_prompt_2 = f""" 
+        assign_assistant_prompt_2 = """ 
 Thank you, I will reflect on the cluster and categorize it most
 appropriately, which will help with safety, moderation, and
 observability.
@@ -619,31 +644,19 @@ observability.
 <scratchpad>"""
         try:
             response = claude.messages.create(
-            model="claude-3-5-sonnet-20240620",
-            max_tokens=500,
-            temperature=1.0,
-            messages = [
-                {
-                    "role":"user",
-                    "content": assign_user_prompt
-                },
-                {
-                    "role": "assistant",
-                    "content": assign_assistant_prompt
-                },
-                {
-                    "role": "user",
-                    "content": assign_user_prompt_2
-                },
-                {
-                    "role": "assistant",
-                    "content": assign_assistant_prompt_2
-                    }
-                ]
+                model="claude-3-5-sonnet-20240620",
+                max_tokens=500,
+                temperature=1.0,
+                messages=[
+                    {"role": "user", "content": assign_user_prompt},
+                    {"role": "assistant", "content": assign_assistant_prompt},
+                    {"role": "user", "content": assign_user_prompt_2},
+                    {"role": "assistant", "content": assign_assistant_prompt_2},
+                ],
             )
             content = response.content[0].text
 
-            #extract answer
+            # extract answer
             if "<answer>" in content and "</answer>" in content:
                 ans_start = content.find("<answer>") + 8
                 ans_end = content.find("</answer>")
@@ -656,21 +669,26 @@ observability.
                     # raise error or find closest match?
                     best_match = None
                     for hl_name in deduplicated:
-                        if assigned_cluster.lower() in hl_name.lower() or hl_name.lower() in assigned_cluster.lower():
+                        if (
+                            assigned_cluster.lower() in hl_name.lower()
+                            or hl_name.lower() in assigned_cluster.lower()
+                        ):
                             best_match = hl_name
                             break
-                    assignments[cluster_id] = best_match or deduplicated[0] #fallback, not sure if works 
+                    assignments[cluster_id] = (
+                        best_match or deduplicated[0]
+                    )  # fallback, not sure if works
             else:
-                assignments[cluster_id] = deduplicated[0] #fallback
+                assignments[cluster_id] = deduplicated[0]  # fallback
         except Exception as e:
             print(f"Error assigning cluster {cluster_id}: {e}")
             assignments[cluster_id] = deduplicated[0]
 
             # we now have 'assignments' list
 
-    # 6) rename higher level clusters based on assignments- last step!! 
+    # 6) rename higher level clusters based on assignments- last step!!
     print("Renaming higher-level clusters based on assignments...")
-    new_lvl_clusters ={}
+    new_lvl_clusters = {}
 
     # group clusters by their assigned HL cluster
     cluster_groups = {}
@@ -681,16 +699,15 @@ observability.
 
     for hl_id, (hl_name, member_cluster_ids) in enumerate(cluster_groups.items()):
         # building list of member clusters for prompt
-        cluster_list = [] #changed from members
+        cluster_list = []  # changed from members
         total_size = 0
         for cluster_id in member_cluster_ids:
             cluster_info = current_clusters[cluster_id]
             cluster_list.append(f"<cluster>({cluster_info['name']})</cluster>")
-            total_size += cluster_info.get('size', cluster_info.get('total_size', 1))
+            total_size += cluster_info.get("size", cluster_info.get("total_size", 1))
 
-        cluster_list_text = '\n'.join(cluster_list) 
+        cluster_list_text = "\n".join(cluster_list)
 
-            
         renamingHL_user_prompt = f"""
 You are tasked with summarizing a group of related cluster names into
 a short, precise, and accurate overall description and name. Your goal
@@ -726,7 +743,7 @@ Do not elaborate beyond what you say in the tags. Ensure your summary and
 name accurately represent the clusters.
 """
 
-        renamingHL_assistant_prompt = f"""
+        renamingHL_assistant_prompt = """
 Sure,  I will provide a clear, precise, and accurate summary and
 name for this cluster. I will be descriptive and assume neither good nor
 bad faith. Here is the summary, which I will follow with the name: <summary>"""
@@ -736,27 +753,29 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
                 max_tokens=500,
                 temperature=1.0,
                 messages=[
-                    {
-                        "role":"user",
-                        "content": renamingHL_user_prompt
-                    },
-                    {
-                        "role":"user",
-                        "content": renamingHL_assistant_prompt
-                    }
-                ]
+                    {"role": "user", "content": renamingHL_user_prompt},
+                    {"role": "user", "content": renamingHL_assistant_prompt},
+                ],
             )
             content = response.content[0].text
 
             summary_end = content.find("</summary>")
-            summary = content[:summary_end].strip() if summary_end != -1 else "Summary generation failed" #fallback
+            summary = (
+                content[:summary_end].strip()
+                if summary_end != -1
+                else "Summary generation failed"
+            )  # fallback
 
             name_start = content.find("<name>") + 6
             name_end = content.find("</name>")
-            name = content[name_start:name_end].strip() if name_start != -1 and name_end != -1 else f"Level {level} Cluster {hl_id}"
+            name = (
+                content[name_start:name_end].strip()
+                if name_start != -1 and name_end != -1
+                else f"Level {level} Cluster {hl_id}"
+            )
 
         except Exception as e:
-            print(f'Error renaming cluster {hl_name}: {e}')
+            print(f"Error renaming cluster {hl_name}: {e}")
             name = f"Level {level} Cluster {hl_id}"
             summary = "Summary generation failed"
 
@@ -765,31 +784,32 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
             "description": summary,
             "member_clusters": member_cluster_ids,
             "total_size": total_size,
-            "size": len(member_cluster_ids)
+            "size": len(member_cluster_ids),
         }
 
-        print(f"Level {level} Cluster {hl_id}: {name} ({len(member_cluster_ids)} sub-clusters, {total_size} total items)")
+        print(
+            f"Level {level} Cluster {hl_id}: {name} ({len(member_cluster_ids)} sub-clusters, {total_size} total items)"
+        )
 
-    hierarchy[f'level_{level}'] = new_lvl_clusters
-    hierarchy['max_level'] = level
+    hierarchy[f"level_{level}"] = new_lvl_clusters
+    hierarchy["max_level"] = level
     current_clusters = new_lvl_clusters
 
     print(f"Level {level} complete: {len(new_lvl_clusters)} clusters created")
 
-        # after this loop term, we have new_lvl_clusters dict with new level clusters
+    # after this loop term, we have new_lvl_clusters dict with new level clusters
 
 print("Clustering complete! Saving Results...")
 dataframes = save_results(
     hierarchy=hierarchy,
-    example_ids=example_ids, 
+    example_ids=example_ids,
     cluster_labels=cluster_labels,
     summaries=summaries,
-    output_dir="clustering_results"
+    output_dir="clustering_results",
 )
-print(f"- level_0_clusters.csv: Base level clusters")
-if hierarchy['max_level'] > 0:
-    for level in range(1, hierarchy['max_level'] + 1):
+print("- level_0_clusters.csv: Base level clusters")
+if hierarchy["max_level"] > 0:
+    for level in range(1, hierarchy["max_level"] + 1):
         print(f"- level_{level}_clusters.csv: Level {level} clusters")
 
-print(f"\nSee /clustering_results for csv files.")
-
+print("\nSee /clustering_results for csv files.")
