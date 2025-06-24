@@ -17,7 +17,7 @@ st.set_page_config(
 def load_demo_data() -> Dict[str, pd.DataFrame]:
     """Load pre-placed CSV files"""
     return {
-        'full_examples': pd.read_csv('clustering_results/full_examples.csv'),
+        'linked_examples': pd.read_csv('clustering_results/raw_examples.csv'), 
         'examples': pd.read_csv('clustering_results/20250623_172754_examples.csv'),
         'level_0': pd.read_csv('clustering_results/20250623_172754_level_0_clusters.csv'),
         'level_1': pd.read_csv('clustering_results/20250623_172754_level_1_clusters.csv')
@@ -281,13 +281,11 @@ def display_examples(examples_df: pd.DataFrame, cluster_id: int):
             
             st.divider()
 
-def display_full_example(full_examples_df: pd.DataFrame, example_id: str):
-    
-    # Find by 'id' column (not 'example_id')
-    matching_examples = full_examples_df[full_examples_df['id'] == example_id]
+def display_full_example(linked_examples_df: pd.DataFrame, example_id: str):
+    matching_examples = linked_examples_df[linked_examples_df['example_id'] == example_id]
     
     if len(matching_examples) == 0:
-        st.error(f"Example {example_id} not found in raw examples data.")
+        st.error(f"Example {example_id} not found in linked examples data.")
         return
     
     example_row = matching_examples.iloc[0]
@@ -311,11 +309,8 @@ def display_full_example(full_examples_df: pd.DataFrame, example_id: str):
         
         try:
             import json
-            inputs_data = eval(example_row['inputs'])  # Convert string back to dict
-            
-            # Display in a formatted way
+            inputs_data = eval(example_row['inputs'])
             st.json(inputs_data)
-            
         except:
             st.write(example_row['inputs'])
 
@@ -356,7 +351,7 @@ def main():
     # Decide what to show based on where we are in the navigation
     if st.session_state.view_mode == 'full_example':
         # Show full example details
-        display_full_example(dataframes['full_examples'], st.session_state.selected_example_id)
+        display_full_example(dataframes['linked_examples'], st.session_state.selected_example_id)
     
     elif not st.session_state.navigation_path:
         # We're at top, show the highest level clusters
