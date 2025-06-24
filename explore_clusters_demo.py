@@ -283,23 +283,16 @@ def display_examples(examples_df: pd.DataFrame, cluster_id: int):
             
             st.divider()
 
-def display_full_example(full_examples_df: pd.DataFrame, example_id: str):
-    """Show the complete conversation data for a specific example"""
+def display_full_example(raw_examples_df: pd.DataFrame, example_id: str):
     
-    # Get the row index we stored when the user clicked "View Full"
-    if 'selected_example_index' not in st.session_state:
-        st.error("No example index found. Please go back and select an example again.")
+    # examples_by_examples id
+    matching_examples = raw_examples_df[raw_examples_df['example_id'] == example_id]
+    
+    if len(matching_examples) == 0:
+        st.error(f"Example {example_id} not found in raw examples data.")
         return
     
-    example_index = st.session_state.selected_example_index
-    
-    # Check if the index is valid
-    if example_index >= len(full_examples_df):
-        st.error(f"Example index {example_index} is out of range. Full examples CSV has {len(full_examples_df)} rows.")
-        return
-    
-    # Get the row by index
-    example_row = full_examples_df.iloc[example_index]
+    example_row = matching_examples.iloc[0]
     
     # Header with back button
     col1, col2 = st.columns([1, 8])
@@ -307,25 +300,26 @@ def display_full_example(full_examples_df: pd.DataFrame, example_id: str):
         if st.button("← Back to Examples", type="secondary"):
             st.session_state.view_mode = 'clusters'
             st.session_state.selected_example_id = None
-            st.session_state.selected_example_index = None
             st.rerun()
     
     with col2:
         st.subheader(f"Full Example: {example_id}")
     
-    # Display the conversation
-    st.markdown(f"**Example ID:** `{example_id}` (Row {example_index} in full examples CSV)")
+    # Display the raw inputs
+    st.markdown(f"**Example ID:** `{example_id}`")
     
-    # Show Input Query first
-    if 'input_query' in example_row.index and pd.notna(example_row['input_query']):
-        st.markdown("**Input Query:**")
-        st.write(example_row['input_query'])
-        st.divider()
-    
-    # Show Input Answer second  
-    if 'input_answer' in example_row.index and pd.notna(example_row['input_answer']):
-        st.markdown("**Input Answer:**")
-        st.write(example_row['input_answer'])
+    if 'inputs' in example_row.index and pd.notna(example_row['inputs']):
+        st.markdown("**Raw Inputs:**")
+        
+        try:
+            import json
+            inputs_data = eval(example_row['inputs'])  # Convert string back to dict
+            
+            # Display in a formatted way
+            st.json(inputs_data)
+            
+        except:
+            st.write(example_row['inputs'])
 
 def main():
     st.title("OpenCLIO for Chat LangChain - Demo")
