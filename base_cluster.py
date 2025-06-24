@@ -7,7 +7,6 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 import math, time, random
 from save_results import save_results
-from mapping import examples_to_base_cluster, base_cluster_to_top
 
 client = Client()
 claude = anthropic.Anthropic()
