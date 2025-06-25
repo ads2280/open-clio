@@ -238,7 +238,7 @@ def display_parent_stack():
         
         if pd.notna(current_cluster['description']):
             description = str(current_cluster['description']).replace('<summary>', '').replace('</summary>', '').strip()
-            st.markdown(f"*{description}*")
+            st.markdown(f"{description}")
         
         st.markdown("---")
 
@@ -281,15 +281,19 @@ def display_examples(examples_df: pd.DataFrame, cluster_id: int):
             
             st.divider()
 
-def display_full_example(linked_examples_df: pd.DataFrame, example_id: str):
+def display_full_example(linked_examples_df: pd.DataFrame, examples_df: pd.DataFrame, example_id: str):
     matching_examples = linked_examples_df[linked_examples_df['example_id'] == example_id]
     
     if len(matching_examples) == 0:
         st.error(f"Example {example_id} not found in linked examples data.")
         return
-    
+    # find the full example
     example_row = matching_examples.iloc[0]
     
+    # find the summary from examples dataframe
+    matching_summaries = examples_df[examples_df['example_id'] == example_id]
+    summary = matching_summaries['summary'].iloc[0] if len(matching_summaries) > 0 else "Summary not found"
+
     # Header with back button
     col1, col2 = st.columns([1, 8])
     with col1:
@@ -299,11 +303,13 @@ def display_full_example(linked_examples_df: pd.DataFrame, example_id: str):
             st.rerun()
     
     with col2:
-        st.subheader(f"Full Example: {example_id}")
+        st.subheader(f"Example {example_id}")
+
+    # Display summary above ex
+    st.markdown(f"**ID:** `{example_id}`")
+    st.markdown(f"**Generated Summary:** {summary}")
     
     # Display the raw inputs
-    st.markdown(f"**Example ID:** `{example_id}`")
-    
     if 'inputs' in example_row.index and pd.notna(example_row['inputs']):
         st.markdown("**Raw Inputs:**")
         
@@ -351,7 +357,7 @@ def main():
     # Decide what to show based on where we are in the navigation
     if st.session_state.view_mode == 'full_example':
         # Show full example details
-        display_full_example(dataframes['linked_examples'], st.session_state.selected_example_id)
+        display_full_example(dataframes['linked_examples'], dataframes['examples'],st.session_state.selected_example_id)
     
     elif not st.session_state.navigation_path:
         # We're at top, show the highest level clusters
