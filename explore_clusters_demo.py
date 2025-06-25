@@ -17,7 +17,8 @@ st.set_page_config(
 def load_demo_data() -> Dict[str, pd.DataFrame]:
     """Load pre-placed CSV files"""
     return {
-        'linked_examples': pd.read_csv('c'), 
+
+        'linked_examples': pd.read_csv('clustering_results/raw_examples_2.csv'), 
         'examples': pd.read_csv('clustering_results/20250625_145851_examples.csv'),
         'level_0': pd.read_csv('clustering_results/20250625_145851_level_0_clusters.csv'),
         'level_1': pd.read_csv('clustering_results/20250625_145851_level_1_clusters.csv')
