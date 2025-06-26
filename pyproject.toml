@@ -4,7 +4,9 @@ version = "0.0.1"
 description = "Open-source implementation of CLIO."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = []
+dependencies = [
+    "langsmith>=0.4.2",
+]
 
 [dependency-groups]
 dev = [
