@@ -4,8 +4,6 @@ import re
 from pathlib import Path
 import ast
 
-import os
-os.environ['OPENAI_API_KEY'] = "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"
 
 # RESULTS_DIR = Path(__file__).parent / "experiment_results"/"sonnet4.0-500-25-5-oai-embed"
 # new_unthread_results/sonnet4/
