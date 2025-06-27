@@ -42,7 +42,7 @@ uv run ruff check
 uv run ruff check --fix
 
 # To add dependencies
-uv add anthropic
+uv add openai
 
 # To sync your env
 uv sync
