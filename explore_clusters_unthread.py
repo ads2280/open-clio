@@ -176,7 +176,11 @@ def display_cluster_table(df: pd.DataFrame, level: int, colour_assignments: Dict
             
             # Metrics in last column
             with col3:
-                if level > 0:
+                if level == 2:
+                    st.metric(f"Level {level-1} clusters", cluster_row['size'])
+                    if 'total_size' in cluster_row and pd.notna(cluster_row['total_size']):
+                        st.metric("Total sub-clusters", cluster_row['total_size'])
+                elif level == 1:
                     st.metric("Sub-clusters", cluster_row['size'])
                     if 'total_size' in cluster_row and pd.notna(cluster_row['total_size']):
                         st.metric("Total conversations", cluster_row['total_size'])
