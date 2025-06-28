@@ -14,6 +14,7 @@ st.set_page_config(
 
 # Load demo data
 #Updated to handle a third level
+# new_unthread_results/sonnet4-3layers-125/20250627_144802_level_0_clusters.csv
 @st.cache_data
 def load_demo_data() -> Dict[str, pd.DataFrame]:
     """Load pre-placed CSV files"""
@@ -22,9 +23,9 @@ def load_demo_data() -> Dict[str, pd.DataFrame]:
         # 20250627_151057_level_0_clusters.csv
         'linked_examples': pd.read_csv('unthread_results/sonnet4-500-125-25-5-old/unthread_raw_examples.csv'), 
         'examples': pd.read_csv('new_unthread_results/sonnet4-3layers-200/20250627_151057_examples.csv'),
-        'level_0': pd.read_csv('new_unthread_results/sonnet4-3layers-200/20250627_151057_level_0_clusters.csv'),
-        'level_1': pd.read_csv('new_unthread_results/sonnet4-3layers-200/20250627_151057_level_1_clusters.csv'),
-        'level_2': pd.read_csv('new_unthread_results/sonnet4-3layers-200/20250627_151057_level_2_clusters.csv')
+        'level_0': pd.read_csv('new_unthread_results/sonnet4-3layers-125/20250627_144802_level_0_clusters.csv'),
+        'level_1': pd.read_csv('new_unthread_results/sonnet4-3layers-125/20250627_144802_level_1_clusters.csv'),
+        'level_2': pd.read_csv('new_unthread_results/sonnet4-3layers-125/20250627_144802_level_2_clusters.csv')
     }
 
 # Initialize state
