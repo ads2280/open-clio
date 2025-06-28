@@ -322,7 +322,7 @@ def display_full_example(linked_examples_df: pd.DataFrame, examples_df: pd.DataF
 
 def main():
     st.title("OpenCLIO Insights on Customer Support Data")
-    st.markdown("See 2990 customer support conversations organized into hierarchical clusters. You can navigate from 5 high-level topic areas down through 15 mid-level clusters, then to ~300 specific clusters, and finally to conversation summaries and full Chat LangChain threads.")
+    st.markdown("See 2990 customer support conversations organized into hierarchical clusters. You can navigate from 5 high-level topic areas down through 15 mid-level clusters, then to 200 specific clusters, and finally to conversation summaries and full Chat LangChain threads.")
     
     init_session_state()
     
@@ -332,7 +332,7 @@ def main():
         
         st.markdown("**Unthread Conversation Analysis:**")
         st.markdown("- 2,990 threads")
-        st.markdown("- 290 base clusters (Level 0)")
+        st.markdown("- 200 base clusters (Level 0)")
         st.markdown("- 15 mid-level clusters (Level 1)")
         st.markdown("- 5 top-level clusters (Level 2)")
         
