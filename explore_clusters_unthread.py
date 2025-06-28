@@ -22,7 +22,7 @@ def load_demo_data() -> Dict[str, pd.DataFrame]:
         # updated paths for new data with 3 levels - the oNLY ting to update
         # 20250627_151057_level_0_clusters.csv
         'linked_examples': pd.read_csv('unthread_results/sonnet4-500-125-25-5-old/unthread_raw_examples.csv'), 
-        'examples': pd.read_csv('new_unthread_results/sonnet4-3layers-200/20250627_151057_examples.csv'),
+        'examples': pd.read_csv('new_unthread_results/sonnet4-3layers-125/20250627_144802_examples.csv'),
         'level_0': pd.read_csv('new_unthread_results/sonnet4-3layers-125/20250627_144802_level_0_clusters.csv'),
         'level_1': pd.read_csv('new_unthread_results/sonnet4-3layers-125/20250627_144802_level_1_clusters.csv'),
         'level_2': pd.read_csv('new_unthread_results/sonnet4-3layers-125/20250627_144802_level_2_clusters.csv')
@@ -323,7 +323,7 @@ def display_full_example(linked_examples_df: pd.DataFrame, examples_df: pd.DataF
 
 def main():
     st.title("OpenCLIO Insights on Customer Support Data")
-    st.markdown("See 2990 customer support conversations organized into hierarchical clusters. You can navigate from 5 high-level topic areas down through 15 mid-level clusters, then to 200 specific clusters, and finally to conversation summaries and full Chat LangChain threads.")
+    st.markdown("See 2990 customer support conversations organized into hierarchical clusters. You can navigate from 5 high-level topic areas down through 15 mid-level clusters, then to 125 specific clusters, and finally to conversation summaries and full Chat LangChain threads.")
     
     init_session_state()
     
@@ -333,7 +333,7 @@ def main():
         
         st.markdown("**Unthread Conversation Analysis:**")
         st.markdown("- 2,990 threads")
-        st.markdown("- 200 base clusters (Level 0)")
+        st.markdown("- 125 base clusters (Level 0)")
         st.markdown("- 15 mid-level clusters (Level 1)")
         st.markdown("- 5 top-level clusters (Level 2)")
         
