@@ -5,13 +5,6 @@ import ast
 import re
 from typing import Dict, List, Optional, Tuple
 
-import os
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
-
-import torch
-torch.set_num_threads(1)
-
 # Page config
 st.set_page_config(
     page_title="Cluster Explorer - Demo",
