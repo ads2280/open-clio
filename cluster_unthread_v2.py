@@ -13,6 +13,7 @@ import random
 from save_results import save_results
 import os
 from prompts import CRITERIA, NAME_CLUSTER_INSTR, PROPOSE_CLUSTERS_INSTR, DEDUPLICATE_CLUSTERS_INSTR, ASSIGN_CLUSTER_INSTR, RENAME_CLUSTER_INSTR
+from collections import defaultdict
 
 client = Client()
 claude = anthropic.Anthropic()
@@ -21,10 +22,19 @@ claude = anthropic.Anthropic()
 examples = list(client.list_examples(dataset_name="unthread-data"))
 summaries = []
 example_ids = []
+examples_by_category = defaultdict(list)
+total_examples = 0
 
 for example in examples:
     summaries.append(example.outputs["request"])  # i.e. summary from spreadsheet
     example_ids.append(example.id)
+    examples_by_category[example.outputs['category']].append(example)
+    total_examples += 1
+
+for category, category_examples in examples_by_category.items():
+    category_ = int(k * len(category_examples) / total_examples)
+    # cluster category_examples
+    # ...
 
 print(f"Loaded {len(summaries)} summaries")
 

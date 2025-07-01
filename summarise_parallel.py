@@ -4,6 +4,9 @@ from prompts import SUMMARIZE_INSTR
 import time
 from tqdm.asyncio import tqdm
 import asyncio
+from langchain.chat_models import init_chat_model
+from typing_extensions import TypedDict
+from typing import Literal
 
 #updated for new ds
 #def use claude b/c openai context window too short
@@ -17,8 +20,16 @@ import asyncio
 # parallel
 # want to see iterations per second 
 
+class Response(TypedDict):
+    category: Literal["LangChain", "LangSmith", "LangGraph", ...]
+    """"""
+    summary: str
+    """"""
+
 client = Client()
 claude = AsyncAnthropic()
+llm = init_chat_model("anthropic:claude-sonnet-4-20250514", max_tokens=100, temperature=0.2)
+structured_llm = llm.with_structured_output(Response)
 
 dataset_name = "unthread-data"
 
@@ -50,6 +61,9 @@ async def process_example(example, semaphore, counter, total_examples):
         start_time = time.time()
 
         try:
+            response = structured_llm.invoke(messages)
+            category = response['category']
+            summary = response['summary']
             response = await claude.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=100,

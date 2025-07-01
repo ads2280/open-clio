@@ -19,6 +19,16 @@ When answering, do not include any personally identifiable information (PII), li
 
 """
 
+"""
+- LangChain OSS: Any questions related to langchain-{x} open-source packages like 'langchain', 'langchain-openai', 'langchain-community', etc., across both Python and JS/TS.  The LangChain open source packages are a colleciton of Python/JS libraries for working with LLMs. They integrates with various LLMs, databases and APIs. Note to distinguish these from LangGraph OSS questions. LangChain OSS questions will often have to do with integrations, while LangGraph questions have to do with agent orchestration.
+- LangGraph OSS: Any questions related to the 'langgraph' Python and JS/TS open source packages. LangGraph is a framework for building AI agents. Note to distinguish LangGraph OSS from LangGraph Platform, a commercial platform for deploying agents built on top of the open source packages.
+- LangGraph Platform/Studio: Any questions related 
+- LangSmith product: ...
+- LangSmith deployment: ...
+- Admin/Account management: ...
+- 
+"""
+
 
 SUMMARIZE_INSTR = """Your job is to analyze this support conversation and extract the key details. Focus on: 
 
