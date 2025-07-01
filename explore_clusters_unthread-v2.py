@@ -195,7 +195,8 @@ def display_cluster_table(df: pd.DataFrame, level: int, colour_assignments: Dict
             st.divider()
 
 def navigate_to_cluster(level: int, cluster_id: int, cluster_name: str):
-    """Add this cluster to our navigation path and refresh the page"""
+    """Navigate to a cluster - either show its children or its examples"""
+    # Add to navigation path
     st.session_state.navigation_path.append({
         'level': level,
         'cluster_id': cluster_id,
@@ -203,6 +204,15 @@ def navigate_to_cluster(level: int, cluster_id: int, cluster_name: str):
     })
     st.session_state.selected_cluster = cluster_id
     st.session_state.current_level = level
+    
+    # Determine what to show next
+    if level == 0:
+        # Level 0 clusters contain examples, not sub-clusters
+        st.session_state.view_mode = 'examples'
+    else:
+        # Higher level clusters contain sub-clusters
+        st.session_state.view_mode = 'clusters'
+    
     st.rerun()
 
 def display_parent_stack():
@@ -213,18 +223,24 @@ def display_parent_stack():
     # Back button at the top
     if st.button("← Back"):
         if st.session_state.navigation_path:
-            # Remove the last step
+            # get rid of previous step
             st.session_state.navigation_path.pop()
             
-            # Update our current position
+            # update position corectly
             if st.session_state.navigation_path:
                 last_step = st.session_state.navigation_path[-1]
                 st.session_state.current_level = last_step['level']
                 st.session_state.selected_cluster = last_step['cluster_id']
+                # Set appropriate view mode
+                if last_step['level'] == 0:
+                    st.session_state.view_mode = 'examples'
+                else:
+                    st.session_state.view_mode = 'clusters'
             else:
-                # Back to the beginning
+                # Back to categories
                 st.session_state.current_level = None
                 st.session_state.selected_cluster = None
+                st.session_state.view_mode = 'categories'
         st.rerun()
     
     # Show each parent in the navigation path
@@ -248,14 +264,41 @@ def display_parent_stack():
         
         st.markdown("---")
 
+def get_child_clusters(dataframes, level, cluster_id):
+    """Get child clusters for a given cluster"""
+    if level == 0:
+        return pd.DataFrame()  # Level 0 has no children
+    
+    current_data = dataframes[f'level_{level}']
+    current_cluster = current_data[current_data['cluster_id'] == cluster_id]
+    
+    if len(current_cluster) == 0:
+        return pd.DataFrame()
+    
+    current_cluster = current_cluster.iloc[0]
+    child_cluster_ids = parse_member_clusters(current_cluster['member_clusters'])
+    
+    if not child_cluster_ids:
+        return pd.DataFrame()
+    
+    child_level = level - 1
+    child_data = dataframes[f'level_{child_level}']
+    return child_data[child_data['cluster_id'].isin(child_cluster_ids)]
+
 def display_examples(examples_df: pd.DataFrame, cluster_id: int):
-    """Show the actual conversation examples for a base cluster"""
     # Filter to just the examples in this cluster
     cluster_examples = examples_df[examples_df['base_cluster_id'] == cluster_id]
     
-    st.subheader(f"Examples in Cluster (Total: {len(cluster_examples)})")
+    dataframes = st.session_state.dataframes
+    level_0_data = dataframes['level_0']
+    current_cluster = level_0_data[level_0_data['cluster_id'] == cluster_id]
     
-    # Set up pagination if there are many examples
+    if len(current_cluster) > 0:
+        category = current_cluster.iloc[0].get('category', 'Unknown Category')
+        st.markdown(f"**Category:** {category}")
+    
+    st.subheader(f"Examples in Cluster (Total: {len(cluster_examples)})")
+
     examples_per_page = 10
     total_pages = (len(cluster_examples) - 1) // examples_per_page + 1
     
@@ -304,7 +347,7 @@ def display_full_example(linked_examples_df: pd.DataFrame, examples_df: pd.DataF
     col1, col2 = st.columns([1, 8])
     with col1:
         if st.button("← Back to Examples", type="secondary"):
-            st.session_state.view_mode = 'clusters'
+            st.session_state.view_mode = 'examples'
             st.session_state.selected_example_id = None
             st.rerun()
     
@@ -440,47 +483,41 @@ def main():
         st.session_state.colour_assignments = assign_colours_to_clusters(dataframes, st.session_state.max_level)
     
     colour_assignments = st.session_state.colour_assignments
-    
-    # Decide what to show based on where we are in the navigation
+
+    # Main content area - decide what to show
     if st.session_state.view_mode == 'full_example':
-        # Show full example details
         display_full_example(dataframes['linked_examples'], dataframes['examples'], st.session_state.selected_example_id)
-    
+
     elif st.session_state.view_mode == 'categories':
         display_category_overview(dataframes)
+
     elif st.session_state.view_mode == 'category_clusters':
         display_category_clusters(dataframes, st.session_state.selected_category)
-    elif not st.session_state.navigation_path:
-        # This is now the fallback
-        base_level_data = dataframes['level_0']
-        display_cluster_table(base_level_data, 0, colour_assignments)
-    else:
-        # We've navigated, now figure out what to show
+
+    elif st.session_state.view_mode == 'examples':
+        # Show examples for the current cluster
+        current_step = st.session_state.navigation_path[-1]
+        display_examples(dataframes['examples'], current_step['cluster_id'])
+
+    elif st.session_state.view_mode == 'clusters':
+        # Show child clusters
         current_step = st.session_state.navigation_path[-1]
         current_level = current_step['level']
         current_cluster_id = current_step['cluster_id']
         
-        if current_level == 0:
-            # We're at the bottom level - show individual examples
-            display_examples(dataframes['examples'], current_cluster_id)
+        children = get_child_clusters(dataframes, current_level, current_cluster_id)
+        
+        if len(children) > 0:
+            child_level = current_level - 1
+            display_cluster_table(children, child_level, colour_assignments)
         else:
-            # We're at a middle level, show its child clusters
-            current_data = dataframes[f'level_{current_level}']
-            current_cluster = current_data[current_data['cluster_id'] == current_cluster_id].iloc[0]
+            st.warning("No child clusters found. This might be a leaf cluster.")
+            # Fallback to showing examples if no children
+            display_examples(dataframes['examples'], current_cluster_id)
 
-            # Find the children of this cluster
-            child_cluster_ids = parse_member_clusters(current_cluster['member_clusters'])
-            
-            if child_cluster_ids:
-                # Get the data for the child level
-                child_level = current_level - 1
-                child_data = dataframes[f'level_{child_level}']
-                children = child_data[child_data['cluster_id'].isin(child_cluster_ids)]
-                
-                display_cluster_table(children, child_level, colour_assignments)
-            else:
-                st.warning("No child clusters found for this selection")
-
+    else:
+        # Default fallback
+        display_category_overview(dataframes)
     
 
 if __name__ == "__main__":
