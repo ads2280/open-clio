@@ -69,6 +69,8 @@ Guidelines:
 
 Provide your summary of the support conversation in <answer> tags. Provide only the answer with no other commentary.
 
+Provide the specific product in <product> tags. Choose one of ...
+
 """
 
 CRITERIA = """

@@ -20,12 +20,12 @@ def load_demo_data() -> Dict[str, pd.DataFrame]:
     """Load pre-placed CSV files"""
     return {
         # updated paths for new data with 3 levels - the oNLY ting to update
-        # 20250627_151057_level_0_clusters.csv
+        # new_unthread_results/sonnet4-3layers-290/20250627_152326_examples.csv
         'linked_examples': pd.read_csv('unthread_results/sonnet4-500-125-25-5-old/unthread_raw_examples.csv'), 
-        'examples': pd.read_csv('new_unthread_results/sonnet4-3layers-125/20250627_144802_examples.csv'),
-        'level_0': pd.read_csv('new_unthread_results/sonnet4-3layers-125/20250627_144802_level_0_clusters.csv'),
-        'level_1': pd.read_csv('new_unthread_results/sonnet4-3layers-125/20250627_144802_level_1_clusters.csv'),
-        'level_2': pd.read_csv('new_unthread_results/sonnet4-3layers-125/20250627_144802_level_2_clusters.csv')
+        'examples': pd.read_csv('new_unthread_results/sonnet4-3layers-290/20250627_152326_examples.csv'),
+        'level_0': pd.read_csv('new_unthread_results/sonnet4-3layers-290/20250627_152326_level_0_clusters.csv'),
+        'level_1': pd.read_csv('new_unthread_results/sonnet4-3layers-290/20250627_152326_level_1_clusters.csv'),
+        'level_2': pd.read_csv('new_unthread_results/sonnet4-3layers-290/20250627_152326_level_2_clusters.csv')
     }
 
 # Initialize state
@@ -176,12 +176,8 @@ def display_cluster_table(df: pd.DataFrame, level: int, colour_assignments: Dict
             
             # Metrics in last column
             with col3:
-                if level == 2:
-                    st.metric(f"Level {level-1} clusters", cluster_row['size'])
-                    if 'total_size' in cluster_row and pd.notna(cluster_row['total_size']):
-                        st.metric("Total sub-clusters", cluster_row['total_size'])
-                elif level == 1:
-                    st.metric("Base clusters", cluster_row['size'])
+                if level > 0:
+                    st.metric("Sub-clusters", cluster_row['size'])
                     if 'total_size' in cluster_row and pd.notna(cluster_row['total_size']):
                         st.metric("Total conversations", cluster_row['total_size'])
                 else:
