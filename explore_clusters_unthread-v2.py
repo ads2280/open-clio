@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import ast
 import re
 from typing import Dict, List, Optional, Tuple
@@ -19,7 +18,7 @@ st.set_page_config(
 def load_demo_data() -> Dict[str, pd.DataFrame]:
     """Load pre-placed CSV files"""
     return {
-        # updated paths for new data with 3 levels - the oNLY ting to update
+        # updated paths for new data with 3 levels - the oNLY thing to update
         # new_unthread_results/sonnet4-3layers-290/20250627_152326_examples.csv
         # category_results/sonnet4-v2/examples.csv
         'linked_examples': pd.read_csv('category_results/raw_examples.csv'), 
