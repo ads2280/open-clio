@@ -1,8 +1,8 @@
 from langsmith import Client
 import anthropic
 
-#updated for new ds
-#def use claude b/c openai context window too short
+# updated for new ds
+# def use claude b/c openai context window too short
 
 # format conversation?
 # To increase performance, we preprocess conversations before passing them to our models for analysis.
@@ -20,7 +20,7 @@ facets = {
     "request": {
         "question": "What is the user's overall LangChain/LangSmith support request?",
         "prefill": "The user's overall request for the assistant is to",
-        "include_privacy_instr": True,  
+        "include_privacy_instr": True,
     },
     "language": {
         "question": "What are the main languages of the conversation? Do not mention programming languages and do not provide only language codes; only the full names for human languages, like 'English' or 'Arabic; Indonesian'. Do not include language families (just provide the general language, e.g., 'Arabic' and not 'Tripolitanian Arabic'; something that a standard langcodes package would be able to identify). Only consider languages in or after the human's first request. Output each language as a single full word with no other commentary.",
@@ -52,7 +52,7 @@ Example: Explicit threats of violence or illegal activities.
 
 Answer with only a single number from 1 to 5.""",
         "prefill": "",
-        "include_privacy_instr": False,  
+        "include_privacy_instr": False,
     },
 }
 
@@ -62,7 +62,7 @@ updates = []
 examples = list(client.list_examples(dataset_name="unthread-data"))
 for i, example in enumerate(examples):
     print(f"now processing example {i + 1}/{len(examples)}")
-    conversation_text = str(example.inputs)  
+    conversation_text = str(example.inputs)
 
     if facet_name not in facets:
         raise ValueError()
@@ -154,7 +154,7 @@ What is your answer to the question <question> {question} </question> about the
     try:
         response = claude.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=200,  
+            max_tokens=200,
             temperature=0.2,
             messages=messages,
         )
@@ -181,8 +181,5 @@ What is your answer to the question <question> {question} </question> about the
     updates.append(update)
 
 print("updating")
-response = client.update_examples(
-    dataset_name="unthread-data", updates=updates
-)
+response = client.update_examples(dataset_name="unthread-data", updates=updates)
 print("done")
-

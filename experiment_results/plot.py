@@ -1,7 +1,9 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-df = pd.read_csv('experiment_results/sonnet3.5-200-14-4/20250623_175800_2d_coordinates.csv')
+df = pd.read_csv(
+    "experiment_results/sonnet3.5-200-14-4/20250623_175800_2d_coordinates.csv"
+)
 
 plt.figure(figsize=(12, 8))
 scatter = plt.scatter(df["x"], df["y"], c=df["cluster_id"], cmap="tab20", alpha=0.7)
