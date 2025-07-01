@@ -423,6 +423,7 @@ def main():
         st.markdown("### Quick Insights") #TODO
         st.info(f"[can put anything else we'd want pinned/to see instantly here]")
         st.success(f"[like this]")
+        st.warning(f"[and this]")
     
         # Show current location if navigating
         if st.session_state.get('selected_category'):
