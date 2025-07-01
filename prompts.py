@@ -23,16 +23,23 @@ When answering, do not include any personally identifiable information (PII), li
 SUMMARIZE_INSTR = """Your job is to analyze this support conversation and extract the key details. Focus on: 
 
 1. **Product**: Which specific product/component is this about?
-   - LangChain Python Library
-   - LangChain JavaScript Library  
-   - LangSmith (Evaluation, Dashboards, Annotations, Datasets, Playground, SDK/Tracing, Prompt Hub, Automation, Observability, Administration)
-   - LangGraph Platform (managed cloud platform, deployment, scaling)
-   - LangGraph Python Library
-   - LangGraph JavaScript Library
-   - LangGraph Studio
-   - Admin/Account (billing, authentication, access, data management)
-   - Other/General
-
+   - LangChain OSS: langchain-{x} open-source packages like 'langchain', 'langchain-openai', 'langchain-community', etc., across both Python and JS/TS. \
+   The LangChain open source packages are a colleciton of Python/JS libraries for working with LLMs. \
+   They integrates with various LLMs, databases and APIs. Note to distinguish these from LangGraph OSS questions. \
+   LangChain OSS questions will often have to do with integrations, while LangGraph questions have to do with LLM agent orchestration.
+   - LangGraph OSS: The 'langgraph' Python and JS/TS open source packages. \
+   LangGraph is a framework for building LLM agents. \
+   Note to distinguish LangGraph OSS from LangGraph Platform, a commercial platform for deploying LLM agents built on top of the open source packages.
+   - LangGraph Platform/Studio: LangGraph Platform is a commercial product for deploying LLM agents built with LangGraph OSS. \
+   LangGraph Studio is a visual debugger for any LLM agents built with LangGraph OSS. \
+   Any conversations related to the features of these products or deployment of these products should go under this category.
+   - LangSmith product: LangSmith product features. LangSmith is an observability and evals platform for AI agents. \
+   It integrates with LangChain and LangGraph but is a standalone product. Any questions related to tracing, evals, the LangSmith SDK, the LangSmith UI, playground, datasets, and prompt hub should go here. Note to distinguish this from LangSmith deployment and Admin/Account management, which have to do with setting up the infrastructure to deploy the LangSmith service or administrative tasks within LangSmith and not the actual product features.
+   - LangSmith deployment: Any issues related to deploying LangSmith the platform (not instrumenting an application to trace to LangSmith, which should go under LangSmith product). \
+   These might have to do with setting up SSO, provisioning cloud resources, managing databases, helm/kubernetes/docker/AWS/GCP/Azure/Clickhouse/Postgres/Redis/S3.
+   - Admin/Account management: Any issues related to billing, sign up, inviting members, usage quotas, receipts, account management, etc.
+   - Unrelated: Any issues unrelated to any of the products.
+   
 2. **Issue Type**: What kind of problem or request is this?
    - Setup/Installation
    - Integration (connecting with other systems)
@@ -68,9 +75,6 @@ Guidelines:
 - Be clear, descriptive and specific 
 
 Provide your summary of the support conversation in <answer> tags. Provide only the answer with no other commentary.
-
-Provide the specific product in <product> tags. Choose one of ...
-
 """
 
 CRITERIA = """

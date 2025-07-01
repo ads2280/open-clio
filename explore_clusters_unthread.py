@@ -21,11 +21,12 @@ def load_demo_data() -> Dict[str, pd.DataFrame]:
     return {
         # updated paths for new data with 3 levels - the oNLY ting to update
         # new_unthread_results/sonnet4-3layers-290/20250627_152326_examples.csv
+        # category_results/sonnet4-v2/examples.csv
         'linked_examples': pd.read_csv('category_results/raw_examples.csv'), 
-        'examples': pd.read_csv('category_results/sonnet4/20250701_094744_examples.csv'),
-        'level_0': pd.read_csv('category_results/sonnet4/20250701_094744_level_0_clusters.csv'),
-        'level_1': pd.read_csv('category_results/sonnet4/20250701_094744_level_1_clusters.csv'),
-        'level_2': pd.read_csv('category_results/sonnet4/20250701_094744_level_2_clusters.csv')
+        'examples': pd.read_csv('category_results/sonnet4-v3/examples.csv'),
+        'level_0': pd.read_csv('category_results/sonnet4-v3/level_0_clusters.csv'),
+        'level_1': pd.read_csv('category_results/sonnet4-v3/level_1_clusters.csv'),
+        'level_2': pd.read_csv('category_results/sonnet4-v3/level_2_clusters.csv')
     }
 
 # Initialize state
@@ -47,9 +48,11 @@ def init_session_state():
     if 'selected_cluster' not in st.session_state:
         st.session_state.selected_cluster = None
     if 'view_mode' not in st.session_state:
-        st.session_state.view_mode = 'clusters'
+        st.session_state.view_mode = 'categories'
     if 'selected_example_id' not in st.session_state:
         st.session_state.selected_example_id = None
+    if 'selected_category' not in st.session_state:
+        st.session_state.selected_category = None
 
 # Parse member_clusters from list str to int
 def parse_member_clusters(member_str: str) -> List[int]:
@@ -169,8 +172,9 @@ def display_cluster_table(df: pd.DataFrame, level: int, colour_assignments: Dict
             # Cluster name and description in middle column
             with col2:
                 st.markdown(f"**{cluster_row['name']}**")
+                if 'category' in cluster_row.index and pd.notna(cluster_row['category']):
+                    st.markdown(f"*Category: {cluster_row['category']}*")
                 if pd.notna(cluster_row['description']):
-                    # Clean up the description text
                     description = str(cluster_row['description']).replace('<summary>', '').replace('</summary>', '').strip()
                     st.write(description)
             
@@ -184,7 +188,8 @@ def display_cluster_table(df: pd.DataFrame, level: int, colour_assignments: Dict
                     st.metric("Conversations", cluster_row['size'])
             
             # Explore button
-            if st.button(f"Explore →", key=f"cluster_{level}_{cluster_id}", use_container_width=True):
+            category = cluster_row.get('category', 'unknown')
+            if st.button(f"Explore →", key=f"cluster_{level}_{cluster_id}_{category}", use_container_width=True):
                 navigate_to_cluster(level, cluster_id, cluster_row['name'])
             
             st.divider()
@@ -320,35 +325,114 @@ def display_full_example(linked_examples_df: pd.DataFrame, examples_df: pd.DataF
             st.json(inputs_data)
         except:
             st.write(example_row['inputs'])
+def display_category_overview(dataframes):
+    """Show category cards as landing page"""
+    st.header("Product Categories")
+    
+    # Get category stats
+    category_stats = dataframes['level_0'].groupby('category').agg({
+        'size': ['count', 'sum']  # count = # clusters, sum = total conversations
+    }).round()
+    
+    category_stats.columns = ['clusters', 'conversations']
+    category_stats = category_stats.sort_values('conversations', ascending=False)
+    
+    # Display as cards in a grid
+    cols = st.columns(2)  # 2 columns
+    
+    for i, (category, stats) in enumerate(category_stats.iterrows()):
+        with cols[i % 2]:
+            with st.container():
+                st.markdown(f"### {category}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Clusters", int(stats['clusters']))
+                with col2:
+                    st.metric("Conversations", int(stats['conversations']))
+                
+                if st.button(f"Explore {category} →", key=f"category_{i}", use_container_width=True):
+                    st.session_state.selected_category = category
+                    st.session_state.view_mode = 'category_clusters'
+                    st.rerun()
+                
+                st.markdown("---")
+
+def display_category_clusters(dataframes, category):
+    """Show clusters for a specific category"""
+    # Back button
+    if st.button("← Back to Categories"):
+        st.session_state.selected_category = None
+        st.session_state.view_mode = 'categories'
+        st.rerun()
+    
+    st.subheader(f"{category} - Clusters")
+    
+    # Filter to category
+    category_data = dataframes['level_0'][dataframes['level_0']['category'] == category]
+    category_data = category_data.sort_values('size', ascending=False)
+    
+    display_cluster_table(category_data, 0, st.session_state.colour_assignments)
+
 
 def main():
     st.title("OpenCLIO Insights on Customer Support Data")
     st.markdown("See 2990 customer support conversations organized into hierarchical clusters. You can navigate from 5 high-level topic areas down through 15 mid-level clusters, then to 125 specific clusters, and finally to conversation summaries and full Chat LangChain threads.")
     
     init_session_state()
+
+    dataframes = st.session_state.dataframes
+    
+    # Sort each level by size (descending)
+    for level_key in ['level_0', 'level_1', 'level_2']:
+        if level_key in dataframes:
+            size_col = 'total_size' if level_key != 'level_0' else 'size'
+            if size_col in dataframes[level_key].columns:
+                dataframes[level_key] = dataframes[level_key].sort_values(size_col, ascending=False)
     
     # Sidebar with dataset info
     with st.sidebar:
-        st.header("Customer Support Dataset")
+        st.header("Customer Support Insights Overview")
+        st.markdown("### Dataset Summary")
         
-        st.markdown("**Unthread Conversation Analysis:**")
-        st.markdown("- 2,990 threads")
-        st.markdown("- 125 base clusters (Level 0)")
-        st.markdown("- 15 mid-level clusters (Level 1)")
-        st.markdown("- 5 top-level clusters (Level 2)")
+        # calc stats
+        total_conversations = dataframes['level_0']['size'].sum()
+        level_0_count = len(dataframes['level_0'])
+        level_1_count = len(dataframes.get('level_1', []))
+        level_2_count = len(dataframes.get('level_2', []))
+
+        # and display them
+        st.metric("Total Support Conversations", f"{total_conversations:,}")
         
-        st.markdown("---")
-        st.markdown("**Navigation:**")
-        st.markdown("- Start with Level 2 clusters (most general)")
-        st.markdown("- Click 'Explore →' to get more specific")
-        st.markdown("- Use '← Back' to get broader insights")
-        st.markdown("- Click 'View Full' for individual threads")
-        
+        # Make hierarchy clearer
+        st.divider()
+        st.markdown("### How to Navigate")
+        st.markdown("**Categories** → Product areas (Admin, LangSmith, etc.)")
+        st.markdown("**Clusters** → Common issue types within each product")
+        st.markdown("**Conversations** → Individual support tickets")
+        st.divider()
+
+        st.markdown("### Support Volume by Product")
+        categories = dataframes['level_0'].groupby('category')['size'].sum().sort_values(ascending=False)
+    
+        for category, conv_count in categories.items():
+            percentage = (conv_count / total_conversations) * 100
+            st.markdown(f"**{category}**: {conv_count:,} conversations ({percentage:.1f}%)")
+    
+        # Add insights
+        st.divider()
+        st.markdown("### Quick Insights") #TODO
+        st.info(f"[can put anything else we'd want pinned/to see instantly here]")
+        st.success(f"[like this]")
+    
+        # Show current location if navigating
+        if st.session_state.get('selected_category'):
+            st.markdown("---")
+            st.markdown(f"**Currently viewing:** {st.session_state.selected_category}")
     
     # Show the navigation breadcrumb
     display_parent_stack()
     
-    dataframes = st.session_state.dataframes
+    # dataframes = st.session_state.dataframes
     
     # Create the color scheme once and store it
     if 'colour_assignments' not in st.session_state:
@@ -361,12 +445,14 @@ def main():
         # Show full example details
         display_full_example(dataframes['linked_examples'], dataframes['examples'], st.session_state.selected_example_id)
     
+    elif st.session_state.view_mode == 'categories':
+        display_category_overview(dataframes)
+    elif st.session_state.view_mode == 'category_clusters':
+        display_category_clusters(dataframes, st.session_state.selected_category)
     elif not st.session_state.navigation_path:
-        # We're at top, show the highest level clusters
-        max_level = st.session_state.max_level
-        top_level_data = dataframes[f'level_{max_level}']
-        display_cluster_table(top_level_data, max_level, colour_assignments)
-    
+        # This is now the fallback
+        base_level_data = dataframes['level_0']
+        display_cluster_table(base_level_data, 0, colour_assignments)
     else:
         # We've navigated, now figure out what to show
         current_step = st.session_state.navigation_path[-1]
@@ -393,6 +479,8 @@ def main():
                 display_cluster_table(children, child_level, colour_assignments)
             else:
                 st.warning("No child clusters found for this selection")
+
+    
 
 if __name__ == "__main__":
     main()

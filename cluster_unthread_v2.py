@@ -178,7 +178,7 @@ def cluster_category_examples(category, category_examples, id_offset):
         }
 
         print(f"Cluster {cluster_id}: {name} ({len(cluster_summaries)} items)")
-        time.sleep(0.5)
+        time.sleep(1.0)  # Increased sleep time for base cluster generation
 
     print(f"\nBase clustering complete for {category}!!")
 
@@ -221,6 +221,7 @@ def cluster_category_examples(category, category_examples, id_offset):
 
         print(f"embedding {len(cluster_ids)} cluster descriptions...")
         cluster_embeddings = embedder.encode(cluster_names_descriptions, show_progress_bar=True)
+        time.sleep(1.0)  # Sleep after embedding step
 
         #2) generate neighbourhoods using k-means
         k_neighborhoods = min(6, len(current_clusters) // 2)  # Ensure reasonable neighborhoods
@@ -310,9 +311,11 @@ def cluster_category_examples(category, category_examples, id_offset):
 
                 proposed.extend(proposed_names)
                 print(f"Neighborhood {neighborhood_id} proposed: {proposed_names}")
+                time.sleep(1.0)  # Sleep after each neighborhood proposal
             
             except Exception as e:
                 print(f"Error proposing clusters for neighborhood {neighborhood_id}: {e}")
+                time.sleep(1.0)  # Sleep even on error to respect rate limits
 
         #4) dedpulicate across neighborhoods
         print(f"Deduplicating {len(proposed)} proposed clusters")
@@ -370,6 +373,7 @@ I understand. I'll deduplicate the cluster names into approximately {target_clus
                 deduplicated = proposed[:target_clusters]
 
         print(f"Final deduplicated clusters: {deduplicated}")
+        time.sleep(2.0)  # Sleep after deduplication step
 
         #5) clusters to higher level clusters
         print(f"Assigning {len(current_clusters)} clusters to {len(deduplicated)} higher-level clusters...")
@@ -438,6 +442,8 @@ appropriately within the LangChain support structure.
             except Exception as e:
                 print(f"Error assigning cluster {cluster_id}: {e}")
                 assignments[cluster_id] = deduplicated[0]
+            
+            time.sleep(1.0)  # Sleep after each cluster assignment
 
         # 6) rename higher levelclusters based on assignments
         print("Renaming higher-level clusters based on assignments...")
@@ -512,6 +518,7 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
             }
 
             print(f"Level {level} Cluster {hl_id}: {name} ({len(member_cluster_ids)} sub-clusters, {total_size} total items)")
+            time.sleep(1.0)  # Sleep after each higher-level cluster renaming
 
         hierarchy[f"level_{level}"] = new_lvl_clusters
         hierarchy["max_level"] = level
@@ -577,6 +584,7 @@ for category, category_examples in examples_by_category.items():
         id_offset = next_offset
         
         print(f"Completed category {category}. Next cluster ID offset: {id_offset}")
+        time.sleep(3.0)  # Sleep between categories
         
     except Exception as e:
         print(f"ERROR processing category {category}: {e}")
@@ -611,7 +619,7 @@ output_dir = f"category_results/sonnet4-{levels}layers-{k}base-by-category"
 import os
 os.makedirs(output_dir, exist_ok=True)
 
-# 1. Save combined examples
+# 1. Save combined examples (this part is correct)
 examples_data = []
 for update in all_updates:
     examples_data.append({
@@ -626,40 +634,35 @@ examples_df = pd.DataFrame(examples_data)
 examples_df.to_csv(f"{output_dir}/examples.csv", index=False)
 print(f"Saved {len(examples_data)} examples to examples.csv")
 
-# 2. Save combined cluster files for each level
-all_levels = {"level_0": {}, "level_1": {}, "level_2": {}}
+# 2. Save ALL clusters from ALL levels across ALL categories
+all_clusters = {"level_0": [], "level_1": [], "level_2": []}
 
 for category, cat_hierarchy in combined_hierarchy["categories"].items():
     for level in range(cat_hierarchy["max_level"] + 1):
         level_key = f"level_{level}"
         if level_key in cat_hierarchy:
             for cluster_id, cluster_data in cat_hierarchy[level_key].items():
-                cluster_data_copy = cluster_data.copy()
-                cluster_data_copy['category'] = category
-                all_levels[level_key][cluster_id] = cluster_data_copy
+                row = {
+                    'cluster_id': cluster_id,
+                    'name': cluster_data.get('name', ''),
+                    'description': cluster_data.get('description', ''),
+                    'size': cluster_data.get('size', 0),
+                    'category': category
+                }
+                
+                # Add level-specific fields
+                if 'total_size' in cluster_data:
+                    row['total_size'] = cluster_data['total_size']
+                if 'member_clusters' in cluster_data:
+                    row['member_clusters'] = str(cluster_data['member_clusters'])
+                
+                all_clusters[level_key].append(row)
 
 # Save each level
-for level_name, clusters in all_levels.items():
-    if not clusters:
+for level_name, cluster_list in all_clusters.items():
+    if not cluster_list:
         continue
         
-    cluster_list = []
-    for cluster_id, cluster_data in clusters.items():
-        row = {
-            'cluster_id': cluster_id,
-            'name': cluster_data.get('name', ''),
-            'description': cluster_data.get('description', ''),
-            'size': cluster_data.get('size', 0),
-            'category': cluster_data.get('category', 'Unknown')
-        }
-        
-        if 'total_size' in cluster_data:
-            row['total_size'] = cluster_data['total_size']
-        if 'member_clusters' in cluster_data:
-            row['member_clusters'] = str(cluster_data['member_clusters'])
-            
-        cluster_list.append(row)
-    
     df = pd.DataFrame(cluster_list)
     df = df.sort_values('size', ascending=False)
     df.to_csv(f"{output_dir}/{level_name}_clusters.csv", index=False)
@@ -667,6 +670,8 @@ for level_name, clusters in all_levels.items():
 
 print(f"\nSee {output_dir} for csv files.")
 print("\nCOMPLETE!")
+
+# could also just be appending to the same csv for each category that's done to check it better?
 
 # # Before calling save_results, flatten the hierarchy
 # flattened_hierarchy = {"level_0": {}, "max_level": 0}
