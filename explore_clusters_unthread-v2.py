@@ -491,8 +491,6 @@ def main():
     matching_row = id_mappings[id_mappings['example_id'] == st.session_state.selected_example_id]
     unthread_id = matching_row['unthread_id'].iloc[0] if len(matching_row) > 0 else 'Not available'
 
-
-
     # Main content area - decide what to show
     if st.session_state.view_mode == 'full_example':
         display_full_example(dataframes['linked_examples'], dataframes['examples'], st.session_state.selected_example_id, unthread_id)
