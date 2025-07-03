@@ -11,9 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Load demo data
-#Updated to handle a third level
-# new_unthread_results/sonnet4-3layers-125/20250627_144802_level_0_clusters.csv
+# load csvs
 @st.cache_data
 def load_demo_data() -> Dict[str, pd.DataFrame]:
     """Load pre-placed CSV files"""
@@ -422,8 +420,9 @@ def display_category_clusters(dataframes, category):
 
 def main():
     st.title("OpenCLIO Insights on Customer Support Data")
-    st.markdown("See 2990 customer support conversations organized into hierarchical clusters. You can navigate from 5 high-level topic areas down through 15 mid-level clusters, then to 125 specific clusters, and finally to conversation summaries and full Chat LangChain threads.")
-    
+    st.markdown(
+        "See 2990 customer support conversations organized into hierarchical clusters. You can navigate from high-level product areas to conversation summaries and full unthread conversations."
+    )
     init_session_state()
 
     dataframes = st.session_state.dataframes
