@@ -1,17 +1,6 @@
 """
 Centralized prompt configs for conversation analysis
 """
-# should probably add these to prompt hub
-
-PARTITIONS = """
-- Admin/Account management: Billing, Authentication, Account Management, Data Deletion, Security/Privacy
-- LangChain OSS: Python library, JavaScript library, LangMem and other components
-- LangSmith product: Evaluation, Dashboards, Annotations, Datasets & Experiments, Playground, SDK/Tracing, Prompt Hub
-- LangGraph: Platform (deployment/infra), OSS Python, OSS JavaScript, Studio, Pricing
-- LangSmith deployment: Setting up SSO, provisioning cloud resources, managing databases, helm/kubernetes/docker/AWS/GCP/Azure
-- Other: Sales inquiries, Spam, Unrelated issues
-"""
-
 SUMMARIZE_INSTR = """
 Your job is to analyze this conversation and extract the key details about what the user is asking the AI assistant to do. 
 Focus on capturing the main task, request, or purpose of the conversation in a clear, concise way.
@@ -41,7 +30,7 @@ Guidelines:
 - Keep it concise - aim for one clear sentence
 
 Provide your summary of the support conversation in <answer> tags and select the most appropriate category for this conversation from the provided list:
-{PARTITIONS}
+{partitions}
 """
 
 CRITERIA = """
@@ -348,18 +337,15 @@ Do not elaborate beyond what you say in the tags. Ensure your summary and name h
 
 # changed {clusters_per_neighborhood} to {target_clusters}, twice
 
+# Default partitions for evaluations
+
 # Evals
 CATEGORY_RELEVANCE = """
 You are evaluating whether conversation fits its assigned category.
 CONVERSATION SUMMARY: {{summary}}
 ASSIGNED CATEGORY: {{category}}
 PARTITIONS:
-- Admin/Account management: Billing, Authentication, Account Management, Data Deletion, Security/Privacy
-- LangChain OSS: Python library, JavaScript library, LangMem and other components
-- LangSmith product: Evaluation, Dashboards, Annotations, Datasets & Experiments, Playground, SDK/Tracing, Prompt Hub
-- LangGraph: Platform (deployment/infra), OSS Python, OSS JavaScript, Studio, Pricing
-- LangSmith deployment: Setting up SSO, provisioning cloud resources, managing databases, helm/kubernetes/docker/AWS/GCP/Azure
-- Other: Sales inquiries, Spam, Unrelated issues
+{partitions}
 TASK: Does this conversation summary fit well within the assigned category?
 Consider:
 - Does the conversation topic align with the category's scope?
@@ -374,8 +360,8 @@ Provide your rating as either 1 or 0.
 
 HIERARCHICAL_FIT = """
 You are evaluating whether a conversation fits under its assigned base cluster.
-BASE CLUSTER: {reference_outputs["clustering"]["level_0"]["name"]}
-CONVERSATION SUMMARY: {reference_outputs["summary"]}
+BASE CLUSTER: {current_cluster} 
+CONVERSATION SUMMARY: {summary} 
 TASK: Does this conversation logically belong under the assigned base cluster?
 Consider:
 - Does the conversation topic align with the cluster's scope?
