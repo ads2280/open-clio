@@ -1,140 +1,115 @@
 """
-Centralized prompt configs for customer service conversation analysis
+Centralized prompt configs for conversation analysis
 """
 # should probably add these to prompt hub
 
-PRIVACY_INSTR = """
-When answering, do not include any personally identifiable information (PII), like
-   names, locations, phone numbers, email addressess, and so on. When answering,
-   do not include any proper nouns. Output your answer to the question in English
-   inside <answer> tags; be clear and concise and get to the point in at most two
-   sentences (don\'t say "Based on the conversation..." and avoid mentioning
-   the AI system/chatbot). For example:
-   <examples>
-   The user asked for help with LangSmith tracing integration issues.
-   The user asked for assistance with LangGraph platform deployment configuration. It took several
-   attempts to resolve the authentication errors.
-   The user requested billing information about subscription upgrades and the support agent provided pricing details.
-   </examples>
-
+PARTITIONS = """
+- Admin/Account management: Billing, Authentication, Account Management, Data Deletion, Security/Privacy
+- LangChain OSS: Python library, JavaScript library, LangMem and other components
+- LangSmith product: Evaluation, Dashboards, Annotations, Datasets & Experiments, Playground, SDK/Tracing, Prompt Hub
+- LangGraph: Platform (deployment/infra), OSS Python, OSS JavaScript, Studio, Pricing
+- LangSmith deployment: Setting up SSO, provisioning cloud resources, managing databases, helm/kubernetes/docker/AWS/GCP/Azure
+- Other: Sales inquiries, Spam, Unrelated issues
 """
 
-
-SUMMARIZE_INSTR = """Your job is to analyze this support conversation and extract the key details. Focus on: 
-
-1. **Product**: Which specific product/component is this about?
-   - LangChain OSS: langchain-{x} open-source packages like 'langchain', 'langchain-openai', 'langchain-community', etc., across both Python and JS/TS. \
-   The LangChain open source packages are a colleciton of Python/JS libraries for working with LLMs. \
-   They integrates with various LLMs, databases and APIs. Note to distinguish these from LangGraph OSS questions. \
-   LangChain OSS questions will often have to do with integrations, while LangGraph questions have to do with LLM agent orchestration.
-   - LangGraph OSS: The 'langgraph' Python and JS/TS open source packages. \
-   LangGraph is a framework for building LLM agents. \
-   Note to distinguish LangGraph OSS from LangGraph Platform, a commercial platform for deploying LLM agents built on top of the open source packages.
-   - LangGraph Platform/Studio: LangGraph Platform is a commercial product for deploying LLM agents built with LangGraph OSS. \
-   LangGraph Studio is a visual debugger for any LLM agents built with LangGraph OSS. \
-   Any conversations related to the features of these products or deployment of these products should go under this category.
-   - LangSmith product: LangSmith product features. LangSmith is an observability and evals platform for AI agents. \
-   It integrates with LangChain and LangGraph but is a standalone product. Any questions related to tracing, evals, the LangSmith SDK, the LangSmith UI, playground, datasets, and prompt hub should go here. Note to distinguish this from LangSmith deployment and Admin/Account management, which have to do with setting up the infrastructure to deploy the LangSmith service or administrative tasks within LangSmith and not the actual product features.
-   - LangSmith deployment: Any issues related to deploying LangSmith the platform (not instrumenting an application to trace to LangSmith, which should go under LangSmith product). \
-   These might have to do with setting up SSO, provisioning cloud resources, managing databases, helm/kubernetes/docker/AWS/GCP/Azure/Clickhouse/Postgres/Redis/S3.
-   - Admin/Account management: Any issues related to billing, sign up, inviting members, usage quotas, receipts, account management, etc.
-   - Unrelated: Any issues unrelated to any of the products.
-   
-2. **Issue Type**: What kind of problem or request is this?
-   - Setup/Installation
-   - Integration (connecting with other systems)
-   - Configuration (settings, parameters)
-   - Debugging/Troubleshooting
-   - Documentation Gap (missing or unclear docs)
-   - Feature Request
-   - Performance/Optimization
-   - Best Practices/Usage Questions
-   - API Usage
-   - Deployment issues
-   - Authentication/Access Problems
-   - Billing/Account Issues
-   - Data Management
-   - Version/Compatibility Issues
-
-3. **Language/Framework** (if applicable): Python, JavaScript, specific frameworks
+SUMMARIZE_INSTR = """
+Your job is to analyze this conversation and extract the key details about what the user is asking the AI assistant to do. 
+Focus on capturing the main task, request, or purpose of the conversation in a clear, concise way.
 
 Provide a structured summary in this format:
-"User requested [ISSUE_TYPE] help with [SPECIFIC_PRODUCT] for [LANGUAGE/FRAMEWORK] implementation"
+"[ACTION/TASK] with [SPECIFIC_TOPIC/SUBJECT] for [CONTEXT/PURPOSE]"
 
 Examples:
-- "User requested debugging help with LangSmith SDK tracing for intermediate Python implementation"
-- "User requested setup help with LangGraph Platform for basic deployment configuration"
-- "User requested integration help with LangChain Python Library for advanced RAG implementation"
+- "help with writing Python code for data analysis project"
+- "explain machine learning concepts for academic research"
+- "create marketing content for social media campaign" 
+- "debug software issues for web application development"
+- "provide advice on career planning for recent graduate"
+- "analyze financial data for investment decision making"
+- "generate creative content for storytelling project"
+- "answer questions about historical events for educational purposes"
 
 Guidelines:
-- Be specific about the LangChain product/component
-- Include the programming language when relevant
-- Capture the technical nature of the request
+- Focus on what the user is asking the AI to do or help with
+- Be specific about the subject matter or domain when clear
+- Leave out redundant words like "User requested" or "I understand"
+- Include context about the purpose, use case, or technical details when relevant to the domain
+- Capture the core intent of the conversation
 - Don't include any personally identifiable information (PII) like names, locations, phone numbers, email addresses
 - Don't include any proper nouns
 - Be clear, descriptive and specific 
+- Keep it concise - aim for one clear sentence
 
-Provide your summary of the support conversation in <answer> tags. Provide only the answer with no other commentary.
+Provide your summary of the support conversation in <answer> tags and select the most appropriate category for this conversation from the provided list:
+{PARTITIONS}
 """
 
 CRITERIA = """
-The cluster name should be a specific, imperative sentence that helps customer support teams, product managers, and documentation teams take immediate action.
+The cluster name should be a specific, imperative sentence that helps teams, analysts, and stakeholders take immediate action.
 
 **BUSINESS PURPOSE:** These clusters enable teams to:
-- Route support tickets to the right product specialists quickly
-- Prioritize which documentation gaps to fill first  
-- Identify product areas needing immediate engineering attention
-- Allocate resources based on user pain frequency
+- Route requests or issues to the right specialists quickly
+- Prioritize which areas need immediate attention
+- Identify patterns that require focus and resources
+- Allocate effort based on frequency and importance
 
 **NAMING REQUIREMENTS:**
 Each cluster name must clearly indicate:
-1. Which LangChain product/component (LangSmith SDK, LangGraph Platform, LangChain Python, etc.)
-2. The specific issue type (integration, debugging, setup, configuration, deployment, etc.)
-3. Technical context when relevant (Python, JavaScript, API, tracing, evaluation, etc.)
+1. The main topic, domain, or subject area
+2. The specific type of task or request
+3. Technical or contextual details when relevant
 
-**GOOD examples (actionable for teams):**
-- "Debug LangSmith Python SDK tracing integration errors" → LangSmith team, SDK expertise needed
-- "Configure LangGraph Platform deployment for production scaling" → LangGraph Platform team, DevOps docs needed
-- "Resolve LangChain JavaScript memory management issues" → LangChain JS team, performance optimization needed
-- "Setup LangSmith evaluation workflows for custom datasets" → LangSmith Evaluation team, workflow documentation needed
-- "Handle Admin billing subscription and payment issues" → Admin team, billing system fixes needed
+**PRECISION REQUIREMENTS:**
+- **Be maximally specific**: Use precise technical terms, specific technologies, exact problem types
+- **Include technical details**: Programming languages, frameworks, specific tools, methodologies
+- **Specify the exact task**: Not just "help" but "debug", "configure", "integrate", "optimize"
+- **Add context when critical**: Target audience, use case, complexity level, domain area
 
-**BAD examples (not actionable):**
-- "Fix technical problems" → Which team? Which product? What type of fix?
-- "Help with platform issues" → Which platform? What specific problem?
-- "Debug application problems" → Which application? What component?
+**GOOD examples (actionable and specific):**
+- "Debug React component state management issues in production applications"
+- "Create SEO-optimized blog content for B2B software companies"
+- "Explain advanced calculus integration techniques for engineering students"
+- "Analyze customer churn patterns using machine learning for subscription businesses"
+- "Generate Python data visualization scripts for financial time series analysis"
 
-Always specify the exact LangChain product and technical area so teams know who should handle it and what type of solution is needed."""
+**BAD examples (too generic/vague):**
+- "Fix technical problems" → What technology? What type of problem? What context?
+- "Help with content" → What kind of content? What purpose? What format?
+- "Answer questions" → About what topic? For what audience? At what level?
+- "Debug code" → What language? What type of issue? What environment?
+
+**TECHNICAL PRECISION GUIDELINES:**
+- For programming: Include language, framework, specific error types, environment
+- For writing: Include format, audience, purpose, style, domain
+- For education: Include subject, level, specific concepts, target audience
+- For business: Include industry, function, tools, specific objectives
+- For analysis: Include data types, methods, tools, business context
+
+Always specify enough detail that someone with the right expertise would immediately understand exactly what work is needed and what knowledge/tools to apply.
+"""
 
 
 NAME_CLUSTER_INSTR = """
-You are tasked with summarizing a group of related LangChain/LangSmith support requests into a short, precise, and accurate description and name. Your goal is to create a concise summary that captures the specific technical support needs and distinguishes them from other types of support requests.
+You are tasked with summarizing a group of related requests into a short, precise, and accurate description and name. Your goal is to create a concise summary that captures the specific needs and distinguishes them from other types of requests.
 
-Summarize all the requests into a clear, precise, two-sentence description in the past tense. Your summary should be specific to the LangChain ecosystem (LangChain OSS, LangSmith, LangGraph) and distinguish it from the contrastive examples of other support clusters.
+Summarize all the requests into a clear, precise, two-sentence description in the past tense. Your summary should be specific to this group and distinguish it from the contrastive examples.
 
-After creating the summary, generate a short name for the group of requests. This name should be at most ten words long and be specific about the LangChain component, feature, or technical issue involved.
+After creating the summary, generate a short name for the group of requests. This name should be at most ten words long and be specific about the topic, task type, or domain involved.
 
-Focus on LangChain ecosystem specificity rather than general terms. For instance, "Debug LangSmith evaluation SDK integration errors", "Configure LangGraph platform deployment settings", or "Handle LangChain Python memory management issues" would be better than general terms like "Fix technical problems" or "Help with platform issues". Be as specific as possible about the LangChain component and technical area while capturing the core support need.
-
-Categories to consider:
-- Admin: Billing, Authentication, Account Management, Data Deletion, Security/Privacy
-- LangChain OSS: Python library, JavaScript library, LangMem and other components
-- LangSmith: Evaluation, Dashboards, Annotations, Datasets & Experiments, Playground, SDK/Tracing, Prompt Hub, Automation Rules, Observability, Pricing, Administration
-- LangGraph: Platform (deployment/infra), OSS Python, OSS JavaScript, Studio, Pricing
-- Other: Sales inquiries, Spam
+Focus on specificity rather than general terms. For instance, "Debug web application authentication errors", "Create social media marketing content", or "Explain advanced mathematics concepts" would be better than general terms like "Fix technical problems" or "Help with content". Be as specific as possible about the domain and task type while capturing the core need.
 
 **CRITICAL CLUSTERING GUIDANCE:**
-- Separate issues by PRODUCT first (LangChain vs LangSmith vs LangGraph vs Admin)
-- Then separate by LANGUAGE (Python vs JavaScript) when applicable
-- Then separate by FEATURE AREA (SDK/Tracing vs Evaluation vs Platform vs Studio)
-- Then separate by ISSUE TYPE (setup vs debugging vs configuration vs deployment)
-- Finally separate by COMPLEXITY (basic usage vs advanced integration)
+- Separate by TOPIC/DOMAIN first (programming vs writing vs education vs business)
+- Then separate by TASK TYPE (debugging vs creating vs explaining vs analyzing)
+- Then separate by CONTEXT (academic vs business vs personal vs creative)
+- Then separate by COMPLEXITY (basic vs intermediate vs advanced)
+- Finally separate by TECHNICAL DETAILS when relevant
 
-Examples of good product/feature distinctions:
-- "LangSmith Python SDK integration" vs "LangSmith JavaScript SDK integration" (different languages)
-- "LangSmith evaluation setup" vs "LangSmith tracing configuration" (different features)
-- "LangGraph Platform deployment" vs "LangGraph Python library usage" (different components)
-- "Admin billing issues" vs "Admin authentication problems" (different admin areas)
+Examples of good distinctions:
+- "Programming debugging help" vs "Creative writing assistance" (different domains)
+- "Basic concept explanations" vs "Advanced technical analysis" (different complexity)
+- "Academic research help" vs "Business strategy advice" (different contexts)
+- "Data analysis tasks" vs "Content creation requests" (different task types)
 
 Present your output in the following format:
 <summary> [Insert your two-sentence summary here] </summary>
@@ -143,67 +118,54 @@ Present your output in the following format:
 The names you propose must follow these requirements:
 <criteria>{criteria}</criteria>
 
-Below are the related LangChain/LangSmith support requests:
+Below are the related requests:
 <answers>
 {cluster_sample}
 </answers>
 
-For context, here are statements from nearby support groups that are NOT part of the group you're summarizing:
+For context, here are statements from nearby groups that are NOT part of the group you're summarizing:
 <contrastive_answers>
 {contrastive_sample}
 </contrastive_answers>
 
-Do not elaborate beyond what you say in the tags. Remember to focus on the specific LangChain components, features, 
-or technical issues that distinguish this group from others in the LangChain ecosystem.
-
+Do not elaborate beyond what you say in the tags. Remember to focus on the specific topics, tasks, 
+or domains that distinguish this group from others.
 """
 
 PROPOSE_CLUSTERS_INSTR = """
-You are tasked with creating higher-level LangChain support categories based on a
-given list of LangChain/LangSmith support clusters and their descriptions. Your goal is to come up
-with broader support categories that could encompass one or more of the provided
-clusters, while maintaining LangChain ecosystem specificity and actionability for support teams.
+You are tasked with creating higher-level categories based on a
+given list of clusters and their descriptions. Your goal is to come up
+with broader categories that could encompass one or more of the provided
+clusters, while maintaining specificity and actionability.
 
-First, review the list of LangChain support clusters and their descriptions:
+First, review the list of clusters and their descriptions:
 <cluster_list>
 {cluster_list_text}
 </cluster_list>
 
-Your task is to create roughly {clusters_per_neighborhood} higher-level LangChain support categories
+Your task is to create roughly {clusters_per_neighborhood} higher-level categories
 that could potentially include one or more of the provided clusters. 
 
 These categories should align with the LangChain support structure and be actionable for product teams:
 
-**Main Categories:**
-1. **Admin** - Billing & Refunds, Authentication & Access, General Account Management, Data Deletion, Security/Privacy/Compliance
-2. **LangChain** - OSS Python, OSS JavaScript, Other OSS components (LangMem, etc.)
-3. **LangSmith** - Evaluation, Dashboards, Annotations, Datasets & Experiments, Playground, SDK/Tracing, Prompt Hub, Automation Rules, Observability, Pricing, Administration
-4. **LangGraph** - Platform (deployment/infra), OSS Python, OSS JavaScript, Studio, Pricing
-5. **Other** - Sales, Spam
+These categories should be actionable and align with natural groupings:
 
-**Subcategory Examples (actionable for teams):**
-- "LangSmith SDK Integration and Tracing Issues" → LangSmith SDK team
-- "LangGraph Platform Deployment and Infrastructure" → LangGraph Platform team
-- "LangChain Python Library Usage and Implementation" → LangChain Python team
-- "Admin Billing and Account Management" → Admin/Finance team
-- "LangSmith Evaluation and Dataset Management" → LangSmith Evaluation team
-
-**Keep these distinctions separate (different teams/solutions needed):**
-- Different products (LangChain vs LangSmith vs LangGraph vs Admin)
-- Different languages (Python vs JavaScript)
-- Different features (Tracing vs Evaluation vs Deployment vs Studio)
-- Different issue types (Setup vs Integration vs Debugging vs Documentation)
-- Different components (SDK vs Platform vs Library vs Dashboard)
+**Main Category Types:**
+1. **Topic/Domain Areas** - Programming, Writing, Education, Business, Science, etc.
+2. **Task Types** - Creating, Debugging, Explaining, Analyzing, Planning, etc.
+3. **Use Contexts** - Academic, Professional, Personal, Creative, Technical
+4. **Complexity Levels** - Basic, Intermediate, Advanced
+5. **Content Types** - Code, Text, Data, Visual, Audio, etc.
 
 You can generate more or less than {clusters_per_neighborhood} names if appropriate. 
 You should output at least {min_cpn} and at most {max_cpn}
 names, with {clusters_per_neighborhood} as a target.
 
-Guidelines for creating higher-level support categories:
-1. Analyze the LangChain products, features, or support areas common to multiple clusters
-2. Create names specific to LangChain ecosystem that tell teams exactly what expertise is needed
-3. Ensure categories align with the main LangChain support structure (Admin/LangChain/LangSmith/LangGraph/Other)
-4. Use clear, product-specific language that support teams can immediately act on
+Guidelines for creating higher-level categories:
+1. Analyze the topics, tasks, or contexts common to multiple clusters
+2. Create names that clearly indicate what type of expertise or approach is needed
+3. Ensure categories reflect natural groupings that would make sense organizationally
+4. Use clear, descriptive language that immediately conveys the scope
 5. Prioritize actionable distinctions over generic groupings
 
 The names you propose must follow these requirements:
@@ -211,30 +173,29 @@ The names you propose must follow these requirements:
 
 Before providing your final list, use a scratchpad to brainstorm and refine
 your ideas. Think about the relationships between the given clusters and
-potential overarching LangChain support themes.
+potential overarching themes.
 
 <scratchpad>
-[Use this space to analyze the clusters, analyze the LangChain products, features, and support patterns. 
-Consider how different clusters might be grouped together under broader LangChain support categories that would be actionable for different product teams. No longer than a paragraph or two.]
+[Use this space to analyze the clusters and identify patterns. 
+Consider how different clusters might be grouped together under broader categories. No longer than a paragraph or two.]
 </scratchpad>
 
 Now, provide your list of roughly {clusters_per_neighborhood} higher-level cluster names. Present your answer in 
 the following format:
 <answer>
-1. [First higher-level LangChain support cluster name]
-2. [Second higher-level LangChain support cluster name]
-3. [Third higher-level LangChain support cluster name]
+1. [First higher-level cluster name]
+2. [Second higher-level cluster name]
+3. [Third higher-level cluster name]
 ...
 {clusters_per_neighborhood}. [Last higher-level cluster name]
 </answer>
 
-Focus on creating meaningful, distinct, and actionable higher-level cluster names that align with 
-the LangChain support structure and help teams prioritize their work.
+Focus on creating meaningful, distinct, and actionable higher-level cluster names.
 """
 
 DEDUPLICATE_CLUSTERS_INSTR = """
-You are tasked with deduplicating a list of LangChain support cluster names into distinct support categories. 
-Your goal is to create approximately {clusters_per_neighborhood} distinct support categories that best represent the LangChain ecosystem support patterns and are actionable for product teams.
+You are tasked with deduplicating a list of cluster names into distinct categories. 
+Your goal is to create approximately {clusters_per_neighborhood} distinct categories that best represent the conversation patterns and are actionable.
 
 Here are the inputs:
 <cluster_names>
@@ -243,73 +204,72 @@ Here are the inputs:
 
 Number of distinct clusters to create: approximately {clusters_per_neighborhood}
 
-IMPORTANT: Focus on actionable distinctions that help different teams prioritize their work. For example, "LangSmith evaluation issues", 
-"LangGraph deployment problems", "LangChain Python library bugs", and "billing account management" are all 
-LangChain support but require different teams and solutions - keep them separate.
+IMPORTANT: Focus on actionable distinctions that help organize different types of work. For example, "programming debugging help", 
+"creative writing assistance", "educational explanations", and "business analysis tasks" all 
+require different expertise and approaches - keep them separate.
 
 Follow these steps to complete the task:
 1. Analyze the given list of cluster names to identify similarities,
-patterns, and themes WITHIN the LangChain support domain.
+patterns, and themes.
 2. Group similar cluster names together based on their semantic meaning and
-specific LangChain product/feature, not just because they're all "LangChain support".
+specific topic/task area, not just surface-level similarity.
 3. For each group, select a representative name that best captures the
-specific LangChain support essence and tells teams exactly what expertise is needed.
-4. Only merge groups if they truly require the same team and solution type. 
-Maintain actionable distinctions for different teams.
+essence and tells people exactly what type of work this involves.
+4. Only merge groups if they truly require the same expertise and approach. 
+Maintain actionable distinctions for different types of work.
 5. Prioritize keeping clusters separate if they involve different:
-   - **Teams**: LangChain vs LangSmith vs LangGraph vs Admin teams
-   - **Products**: Different LangChain ecosystem products
-   - **Languages**: Python vs JavaScript (different developer expertise)
-   - **Feature areas**: Evaluation vs Deployment vs Tracing vs Billing
-   - **Solution types**: Documentation vs Product fixes vs API changes
-   - **Issue complexity**: Basic setup vs Advanced integration
+   - **Domains**: Programming vs Writing vs Education vs Business
+   - **Task types**: Creating vs Debugging vs Explaining vs Analyzing
+   - **Contexts**: Academic vs Professional vs Personal vs Creative
+   - **Complexity**: Basic help vs Advanced problem-solving
+   - **Content types**: Code vs Text vs Data vs Media
+   - **Expertise needed**: Technical vs Creative vs Analytical vs Educational
 6. Ensure that the final set of cluster names are distinct from each other
-and collectively represent the LangChain support diversity of the original list.
-7. If you create new names for any clusters, make sure they specify the
-LangChain product/feature and support type clearly so teams know who should handle it.
+and collectively represent the diversity of the original list.
+7. If you create new names for any clusters, make sure they clearly specify the
+topic and task type so people know what expertise is needed.
 8. You do not need to come up with exactly {clusters_per_neighborhood} names, but aim
 for no less than {min_cpn} and no more than {max_cpn}. Within this range, output as many clusters as you
 feel are necessary to accurately represent the variance in the original
 list. Avoid outputting duplicate or near-duplicate clusters.
-9. Prefer outputting specific, actionable LangChain support cluster names over generic ones;
-for example, "Debug LangSmith SDK tracing integration" immediately tells the LangSmith SDK team what to work on.
+9. Prefer outputting specific, actionable cluster names over generic ones;
+for example, "Debug web application programming issues" immediately tells people what type of expertise is needed.
 
 **Examples of good actionable distinctions:**
-- "LangSmith evaluation configuration and setup" vs "LangSmith dashboard UI and functionality issues" (different LangSmith teams)
-- "LangGraph Python library implementation" vs "LangGraph platform deployment and infrastructure" (different expertise needed)
-- "Admin billing and subscription management" vs "Admin authentication and access control" (different admin solutions)
-- "LangChain Python performance optimization" vs "LangChain JavaScript integration problems" (different language expertise)
+- "Programming debugging and troubleshooting" vs "Creative writing and storytelling" (different domains)
+- "Basic concept explanations" vs "Advanced technical analysis" (different complexity)
+- "Academic research assistance" vs "Business strategy planning" (different contexts)
+- "Data analysis and visualization" vs "Content creation and editing" (different expertise)
 
-**What TO merge (same team/solution):**
-- "Debug LangSmith tracing" + "Fix LangSmith tracing errors" → "Debug LangSmith SDK tracing issues"
-- "LangGraph deployment help" + "LangGraph platform setup" → "LangGraph Platform deployment and configuration"
+**What TO merge (same expertise/approach):**
+- "Debug code errors" + "Fix programming issues" → "Debug programming and software issues"
+- "Creative writing help" + "Story writing assistance" → "Creative writing and storytelling assistance"
 
-**What NOT to merge (different teams/solutions):**
-- "LangSmith Python SDK" + "LangSmith JavaScript SDK" (different language teams)
-- "LangGraph Platform deployment" + "LangGraph Studio problems" (different product components)
+**What NOT to merge (different expertise/approach):**
+- "Programming tutorials" + "Creative writing help" (different domains)
+- "Basic math explanations" + "Advanced data analysis" (different complexity)
 
 The names you propose must follow these requirements:
 <criteria>{criteria}</criteria>
 
 Before providing your final answer, use the <scratchpad> tags to think
-through your process, specifically identifying the different LangChain
-products and support types in the list that would require different teams or solutions.
+through your process, specifically identifying the different domains and task types that would require different expertise.
 
 Present your final answer in the following format: 
 <answer>
-1. [First actionable LangChain support cluster name]
-2. [Second actionable LangChain support cluster name]
-3. [Third actionable LangChain support cluster name]
+1. [First actionable cluster name]
+2. [Second actionable cluster name]
+3. [Third actionable cluster name]
 ...
-N. [Nth actionable LangChain support cluster name]
+N. [Nth actionable cluster name]
 </answer>
 
-Remember, your goal is to create approximately {target_clusters} actionable cluster names that help teams immediately understand what work needs to be prioritized and who should handle it.
+Remember, your goal is to create approximately {target_clusters} actionable cluster names that help people immediately understand what type of work and expertise is involved.
 """
 
 ASSIGN_CLUSTER_INSTR = """
-You are tasked with categorizing a specific LangChain support cluster into one of the provided higher-level LangChain support categories. 
-Focus on actionable team assignment - which team should handle this and what expertise do they need? Your goal is to determine which higher-level cluster best
+You are tasked with categorizing a specific cluster into one of the provided higher-level categories. 
+Focus on matching the type of work and expertise needed. Your goal is to determine which higher-level cluster best
 fits the given specific cluster based on its name and description.
 
 First, carefully review the following list of higher-level clusters:
@@ -317,23 +277,23 @@ First, carefully review the following list of higher-level clusters:
 {higher_level_text}
 </higher_level_clusters>
 
-To categorize the LangChain support cluster for actionable team assignment:
-1. **Identify the main LangChain product** (LangChain OSS, LangSmith, LangGraph, Admin, Other)
-2. **Determine the specific component** (SDK, Evaluation, Platform, Billing, Studio, etc.)
-3. **Note the technical expertise needed** (Python, JavaScript, DevOps, API integration, etc.)
-4. **Consider the solution type** (Documentation, Product fix, API change, Configuration help)
-5. **Match to the category that requires the same team and expertise**
+To categorize the cluster:
+1. **Identify the main topic/domain** (Programming, Writing, Education, Business, etc.)
+2. **Determine the task type** (Creating, Debugging, Explaining, Analyzing, etc.)
+3. **Note the context** (Academic, Professional, Personal, Creative, etc.)
+4. **Consider the complexity level** (Basic, Intermediate, Advanced)
+5. **Match to the category that involves the same type of work and expertise**
 
-Be precise with team assignment. For example:
-- LangSmith tracing issues → LangSmith SDK team (not general debugging team)
-- LangGraph deployment problems → LangGraph Platform team (not general infrastructure team)  
-- Billing disputes → Admin/Finance team (not general account team)
-- Python library bugs → LangChain Python team (not JavaScript team)
+Be precise with categorization. For example:
+- Python web application debugging issues → Programming debugging and troubleshooting assistance
+- Creative fiction writing and character development → Creative writing and storytelling assistance  
+- Advanced calculus concept explanations for university students → Educational tutoring and concept explanation
+- Financial data analysis for quarterly business planning → Business data analysis and strategic planning
 
 First, use the <scratchpad> tags to think through your reasoning:
 
 <scratchpad>
-Think step by step: What LangChain product is this about? What specific component/feature? What type of expertise is needed? Which team should handle this? Which higher-level category best matches these requirements?
+Think step by step: What domain is this about? What type of task? What level of expertise is needed? Which higher-level category best matches these requirements?
 </scratchpad>
 
 Then, provide your answer in the following format:
@@ -344,45 +304,163 @@ clusters above, without enclosing <cluster> tags]
 """
 
 RENAME_CLUSTER_INSTR = """
-You are tasked with summarizing a group of related LangChain support cluster names into
-a short, precise, and accurate overall description and name that is actionable for product teams.
+You are tasked with summarizing a group of related cluster names into
+a short, precise, and accurate overall description and name.
 
-Summarize the LangChain support work into a clear, precise, two-sentence description in the past tense. 
-Your summary should specify which teams need to be involved and what type of solutions are typically needed.
+Summarize the work into a clear, precise, two-sentence description in the past tense. 
+Your summary should specify what type of work this involves and what expertise is typically needed.
 
-After creating the summary, create a short name that immediately tells teams:
-- **Which product team** should handle this (LangSmith, LangGraph, LangChain, Admin)
-- **What specific area** needs attention (SDK, Platform, Evaluation, Billing, etc.)
-- **What type of work** is needed (Integration, Debugging, Configuration, Documentation, etc.)
+After creating the summary, create a short name that immediately tells people:
+- **What domain** this covers (Programming, Writing, Education, Business, etc.)
+- **What type of task** this involves (Creating, Debugging, Explaining, Analyzing, etc.)
+- **What context** this is for (Academic, Professional, Personal, Creative, etc.)
 
 Focus on actionable specificity. For instance:
-- "Debug LangSmith SDK tracing integration issues" → LangSmith SDK team, integration expertise needed
-- "Configure LangGraph Platform deployment and scaling" → LangGraph Platform team, DevOps/deployment expertise needed  
-- "Handle Admin billing subscription and payment issues" → Admin/Finance team, billing system expertise needed
-- "Resolve LangChain Python library performance problems" → LangChain Python team, performance optimization needed
+- "Debug programming and software development issues" → Programming expertise needed
+- "Create marketing and promotional content" → Writing/Marketing expertise needed  
+- "Explain educational concepts and provide tutoring" → Teaching/Educational expertise needed
+- "Analyze business data and provide strategic insights" → Business/Analytics expertise needed
 
-Consider the LangChain support structure for team assignment:
-- **Admin Team**: Billing & Refunds, Authentication & Access, Account Management, Data Deletion, Security/Privacy
-- **LangChain Teams**: Python library team, JavaScript library team, LangMem team
-- **LangSmith Teams**: Evaluation team, Dashboards team, Annotations team, SDK/Tracing team, Prompt Hub team, etc.
-- **LangGraph Teams**: Platform team (deployment/infra), Python library team, JavaScript library team, Studio team
-- **Other Teams**: Sales, Spam/Abuse
+Consider typical expertise areas:
+- **Programming/Technical**: Coding, debugging, software development, system administration
+- **Writing/Content**: Creative writing, marketing content, documentation, editing
+- **Education/Tutoring**: Concept explanation, academic help, skill teaching
+- **Business/Strategy**: Analysis, planning, decision making, process optimization
+- **Creative/Design**: Visual content, artistic projects, creative problem solving
+- **Research/Analysis**: Data analysis, research assistance, information synthesis
 
-The goal is helping teams immediately understand: "This cluster is for us, we need this type of expertise, and we should prioritize this type of solution."
+The goal is helping people immediately understand: "This involves this type of work, requiring this kind of expertise."
 
 Present your output in the following format:
-<summary> [Insert your two-sentence summary that specifies teams and solution types needed] </summary>
-<name> [Insert your actionable team-focused name here, with no period or trailing punctuation] </name>
+<summary> [Insert your two-sentence summary that specifies work type and expertise needed] </summary>
+<name> [Insert your actionable name here, with no period or trailing punctuation] </name>
 
 The name you choose must follow these requirements:
 <criteria>{criteria}</criteria>
 
-Below are the related LangChain support statements:
+Below are the related statements:
 <answers>
 {cluster_list_text}
 </answers>
 
-Do not elaborate beyond what you say in the tags. Ensure your summary and name help teams immediately understand their responsibilities and priorities.
+Do not elaborate beyond what you say in the tags. Ensure your summary and name help people immediately understand the type of work and expertise involved.
 """
 
 # changed {clusters_per_neighborhood} to {target_clusters}, twice
+
+# Evals
+CATEGORY_RELEVANCE = """
+You are evaluating whether conversation fits its assigned category.
+CONVERSATION SUMMARY: {{summary}}
+ASSIGNED CATEGORY: {{category}}
+PARTITIONS:
+- Admin/Account management: Billing, Authentication, Account Management, Data Deletion, Security/Privacy
+- LangChain OSS: Python library, JavaScript library, LangMem and other components
+- LangSmith product: Evaluation, Dashboards, Annotations, Datasets & Experiments, Playground, SDK/Tracing, Prompt Hub
+- LangGraph: Platform (deployment/infra), OSS Python, OSS JavaScript, Studio, Pricing
+- LangSmith deployment: Setting up SSO, provisioning cloud resources, managing databases, helm/kubernetes/docker/AWS/GCP/Azure
+- Other: Sales inquiries, Spam, Unrelated issues
+TASK: Does this conversation summary fit well within the assigned category?
+Consider:
+- Does the conversation topic align with the category's scope?
+- Would a support team for this category be the right team to handle this request?
+- Is this conversation clearly about the assigned product area?
+Rate this as either:
+- CORRECT (1): The conversation clearly fits the assigned category
+- INCORRECT (0): The conversation does not fit the assigned category
+Provide your rating as either 1 or 0.
+"""
+
+
+HIERARCHICAL_FIT = """
+You are evaluating whether a conversation fits under its assigned base cluster.
+BASE CLUSTER: {reference_outputs["clustering"]["level_0"]["name"]}
+CONVERSATION SUMMARY: {reference_outputs["summary"]}
+TASK: Does this conversation logically belong under the assigned base cluster?
+Consider:
+- Does the conversation topic align with the cluster's scope?
+- Would a support team for this cluster be the right team to handle this request?
+- Is this a sensible organizational grouping?
+Rate this as either:
+- CORRECT (1): The conversation clearly belongs under the base cluster
+- INCORRECT (0): The conversation does not belong under the base cluster
+Provide your rating as either 1 or 0.
+"""
+
+BEST_FIT = """
+    You are evaluating whether a conversation is assigned to the best possible base cluster.
+
+CONVERSATION SUMMARY: {summary}
+CURRENT ASSIGNMENT: {current_cluster}
+
+ALL AVAILABLE BASE CLUSTERS:
+{all_base_clusters_text}
+
+TASK: Is the current assignment the BEST fit among all available options?
+
+Consider:
+- Which cluster would most naturally handle this type of request?
+- Does the current assignment make the most sense organizationally?
+- Would any other cluster be a better fit for this conversation?
+
+Rate this as either:
+- OPTIMAL (1): The current assignment is the best fit among all options
+- SUBOPTIMAL (0): Another cluster would be a better fit for this conversation
+
+If rating as SUBOPTIMAL, the conversation would fit better in a different cluster.
+
+Provide your rating as either 1 or 0. If you provide a rating of 0, provide the name of the cluster where it would fit better.
+"""
+
+EXCLUSIVE_FIT = """
+Analyze this conversation and identify ALL clusters it could reasonably belong to.
+
+CONVERSATION SUMMARY: {summary}
+CURRENT ASSIGNMENT: {current_cluster}
+
+ALL AVAILABLE CLUSTERS: 
+{all_base_clusters_text}
+
+TASK: List ALL clusters (including the current one) where this conversation could reasonably fit. 
+A conversation "fits" if that team could appropriately handle the request.
+
+Rate each conversation as either:
+- EXCLUSIVE FIT(1): This conversation clearly belongs to its current cluster and would not fit well in other clusters.
+- AMBIGUOUS FIT (0): This conversation could reasonably belong to multiple clusters or its cluster assignment is unclear.
+"""
+
+DEDUPLICATE = """
+Here's a list of {total_base_clusters} topics extracted from a series of conversations:
+{all_base_clusters_text}
+
+TASK: Count how many truly unique topics there are after consolidating semantically equivalent ones.
+
+Two topics should be merged if they handle very similar requests or represent the same core problem area.
+
+Think through this step by step:
+1. Group together topics that are essentially the same
+2. Count the number of unique groups  
+3. Calculate: unique_topics / {total_base_clusters}
+
+At the end, provide the final calculation in this format:
+FINAL SCORE: [decimal number]
+
+For example: FINAL SCORE: 0.73
+"""
+
+"""
+{
+  "summary": "debugging help with LangSmith SDK tracing for Python implementation",
+  "category": "LangSmith product",
+  "clustering": {
+    "level_0": {
+      "id": 5,
+      "name": "Debug LangSmith Python SDK tracing integration errors"
+    },
+    "level_1": {
+      "id": 2,
+      "name": "Handle LangSmith SDK Integration and Tracing Issues"
+    }
+  }
+}
+"""
