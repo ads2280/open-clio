@@ -13,11 +13,13 @@ st.set_page_config(
 
 
 class ClusteringExplorer:
-    def __init__(self, config_path: str = "config.json"):
+    def __init__(self, config_path: str = "../.data/config.json"):
         self.config = self.load_config(config_path)
         self.data = {}
         self.max_level = len(self.config["hierarchy"]) - 1
         self.level_names = [f"level_{i}" for i in range(len(self.config["hierarchy"]))]
+        # Use the same save path as generate.py
+        self.save_path = "../.data/clustering_results"
 
     def load_config(self, config_path: str) -> dict:
         """Load configuration from JSON file"""
@@ -33,9 +35,9 @@ class ClusteringExplorer:
 
     @st.cache_data
     def load_data(_self) -> Dict[str, pd.DataFrame]:
-        """Load combined.csv data file"""
+        """Load combined.csv and level data files"""
         data = {}
-        save_path = _self.config["save_path"]
+        save_path = _self.save_path
 
         # Load combined.csv - required
         combined_path = os.path.join(save_path, "combined.csv")
@@ -52,6 +54,20 @@ class ClusteringExplorer:
             st.error(f"combined.csv not found in {save_path}")
             st.error("Please run generate_clusters.py to generate cluster info")
             st.stop()
+
+        # Load level data files
+        for i in range(_self.max_level + 1):
+            level_name = f"level_{i}"
+            level_path = os.path.join(save_path, f"{level_name}_clusters.csv")
+            if os.path.exists(level_path):
+                try:
+                    data[level_name] = pd.read_csv(level_path)
+                    st.success(f"Loaded {level_name} with {len(data[level_name])} clusters")
+                except Exception as e:
+                    st.error(f"Error loading {level_name}_clusters.csv: {e}")
+                    st.stop()
+            else:
+                st.warning(f"{level_name}_clusters.csv not found in {save_path}")
 
         return data
 
