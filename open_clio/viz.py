@@ -13,13 +13,13 @@ st.set_page_config(
 
 
 class ClusteringExplorer:
-    def __init__(self, config_path: str = "../.data/config.json"):
+    def __init__(self, config_path: str = ".data/config.json"):
         self.config = self.load_config(config_path)
         self.data = {}
         self.max_level = len(self.config["hierarchy"]) - 1
         self.level_names = [f"level_{i}" for i in range(len(self.config["hierarchy"]))]
         # Use the same save path as generate.py
-        self.save_path = "../.data/clustering_results"
+        self.save_path = ".data/clustering_results"
 
     def load_config(self, config_path: str) -> dict:
         """Load configuration from JSON file"""
@@ -62,7 +62,9 @@ class ClusteringExplorer:
             if os.path.exists(level_path):
                 try:
                     data[level_name] = pd.read_csv(level_path)
-                    st.success(f"Loaded {level_name} with {len(data[level_name])} clusters")
+                    st.success(
+                        f"Loaded {level_name} with {len(data[level_name])} clusters"
+                    )
                 except Exception as e:
                     st.error(f"Error loading {level_name}_clusters.csv: {e}")
                     st.stop()
@@ -149,7 +151,7 @@ class ClusteringExplorer:
         ]  # start with top level clusters
 
         for i, (_, cluster_row) in enumerate(top_level_data.iterrows()):
-            cluster_id = cluster_row["cluster_id"]
+            cluster_id = str(cluster_row["cluster_id"])
             base_color = distinct_colors[i % len(distinct_colors)]
             color_assignments[(self.max_level, cluster_id)] = base_color
 

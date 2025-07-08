@@ -101,7 +101,6 @@ async def summarize_example(
         # With structured output, response has summary and category fields
         res = response.summary
         category = response.category
-        print(f"Summary: {res}")
 
     except Exception as e:
         logger.error(f"Error processing example {example.id}: {e}")
@@ -111,7 +110,11 @@ async def summarize_example(
 
 
 async def summarize_all(
-    examples: list, partitions: dict[str, str], summary_prompt: str, *, max_concurrency: int
+    examples: list,
+    partitions: dict[str, str],
+    summary_prompt: str,
+    *,
+    max_concurrency: int,
 ) -> list[schemas.ExampleSummary | None]:
     """Generate summaries for all examples in the dataset."""
     print("Generating example summaries")
@@ -158,7 +161,7 @@ def perform_base_clustering(
         silhouette = silhouette_score(embeddings, clusters)
         print(f"silhoutte score: {silhouette}")
 
-    print(f"unique clusters: {np.unique(clusters)}")
+    # print(f"unique clusters: {np.unique(clusters)}")
 
     # generate descriptions for all clusters
     return generate_cluster_descriptions(clusters, summaries, embeddings, category)
@@ -368,7 +371,7 @@ I understand. I'll deduplicate the cluster names into approximately {target_clus
             max_tokens=1000,
             temperature=1.0,
         )
-        content = response.text
+        content = str(response.content)
         deduplicated = []
         if "<answer>" in content and "</answer>" in content:
             ans_start = content.find("<answer>") + 8
@@ -451,7 +454,7 @@ appropriately within the LangChain support structure.
                 max_tokens=500,
                 temperature=1.0,
             )
-            content = response.content[0].text
+            content = str(response.content)
             if "<answer>" in content and "</answer>" in content:
                 ans_start = content.find("<answer>") + 8
                 ans_end = content.find("</answer>")
@@ -534,7 +537,7 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
                 max_tokens=500,
                 temperature=1.0,
             )
-            content = response.content[0].text
+            content = str(response.content)
 
             summary_end = content.find("</summary>")
             summary = (
@@ -591,12 +594,13 @@ def generate_cluster_descriptions(
             cluster_mask, embeddings, summaries
         )
 
+        # Generate cluster ID first
+        cluster_id = uuid.uuid4()
+
         # use them to generate the description for this cluster
         name, description = generate_single_cluster_description(
-            cluster_summaries, contrastive_summaries
+            cluster_summaries, contrastive_summaries, cluster_id
         )
-
-        cluster_id = uuid.uuid4()
         cluster_info.append(
             {
                 "name": name,
@@ -636,7 +640,9 @@ def get_contrastive_summaries(cluster_mask, embeddings, summaries):
         # get closest non-cluster summaries
         n_contrastive = min(50, len(non_cluster_summaries))
         nearest_indices = np.argsort(distances)[:n_contrastive]
-        contrastive_summaries = [non_cluster_summaries[i] for i in nearest_indices]
+        contrastive_summaries = [
+            non_cluster_summaries[i]["summary"] for i in nearest_indices
+        ]
     else:
         contrastive_summaries = []
 
@@ -684,7 +690,7 @@ def generate_single_cluster_description(
             max_tokens=500,
             temperature=1.0,
         )
-        content = response.content[0].text
+        content = str(response.content)
         summary_end = content.find("</summary>")
         summary = (
             content[:summary_end].strip()
@@ -732,8 +738,8 @@ def cluster_category_examples(
         # TODO
         cluster_info = [
             {
-                "name": "all examples",
-                "description": "all unclustered examples",
+                "name": f"all {category} examples",
+                "description": f"all unclustered {category} examples",
                 "id": uuid.uuid4(),
                 "size": len(summaries),
                 "summaries": [s["summary"] for s in summaries],
@@ -894,6 +900,13 @@ def save_results(all_updates, combined_hierarchy):
     # 1. combined.csv: save combined examples with full hierarchical clustering info
     print(f"\nSaving results to {save_path}...")
     examples_data = []
+    print(f"\nDEBUG: Sample clustering data from updates:")
+    for i, update in enumerate(all_updates[:3]):  # Show first 3 updates
+        clustering = update["outputs"]["clustering"]
+        print(f"  Update {i}: {len(clustering)} clustering levels")
+        for level_key, level_data in clustering.items():
+            print(f"    {level_key}: {level_data}")
+
     for update in all_updates:
         clustering = update["outputs"]["clustering"]
 
@@ -963,13 +976,34 @@ def save_results(all_updates, combined_hierarchy):
     # 2. csv by level: Save ALL clusters from ALL levels across ALL categories
     all_clusters = {"level_0": [], "level_1": [], "level_2": []}
 
+    print(f"\nDEBUG: combined_hierarchy structure:")
+    for category, cat_hierarchy in combined_hierarchy["categories"].items():
+        print(f"  Category: {category}")
+        print(f"    Max level: {cat_hierarchy.get('max_level', 0)}")
+        for level_key, level_data in cat_hierarchy.items():
+            if level_key != "max_level":
+                print(f"    {level_key}: {len(level_data)} clusters")
+                for cluster_id, cluster_data in list(level_data.items())[
+                    :3
+                ]:  # Show first 3
+                    print(f"      {cluster_id}: {cluster_data.get('name', 'NO NAME')}")
+
+    # ADD DEBUG: Print the actual data being processed
+    print(f"\nDEBUG: Processing clusters for CSV files:")
+    total_clusters = 0
     for category, cat_hierarchy in combined_hierarchy["categories"].items():
         for level in range(cat_hierarchy["max_level"] + 1):
             level_key = f"level_{level}"
             if level_key in cat_hierarchy:
+                print(f"  DEBUG Processing {level_key} for category '{category}':")
                 for cluster_id, cluster_data in cat_hierarchy[level_key].items():
+                    print(
+                        f"   DEBUG  Cluster {cluster_id}: {cluster_data.get('name', 'NO NAME')}"
+                    )
+                    total_clusters += 1
+
                     row = {
-                        "cluster_id": cluster_id,
+                        "cluster_id": str(cluster_id),
                         "name": cluster_data.get("name", ""),
                         "description": cluster_data.get("description", ""),
                         "size": cluster_data.get("size", 0),
@@ -984,6 +1018,8 @@ def save_results(all_updates, combined_hierarchy):
 
                     all_clusters[level_key].append(row)
 
+    print(f"DEBUG: Total clusters processed: {total_clusters}")
+
     # Save each level
     for level_name, cluster_list in all_clusters.items():
         if not cluster_list:
@@ -991,8 +1027,14 @@ def save_results(all_updates, combined_hierarchy):
 
         df = pd.DataFrame(cluster_list)
         df = df.sort_values("size", ascending=False)
-        df.to_csv(f"{save_path}/{level_name}_clusters.csv", index=False)
+        output_path = f"{save_path}/{level_name}_clusters.csv"  # debug
+        df.to_csv(output_path, index=False)  # debug
         print(f"Saved {len(cluster_list)} clusters to {level_name}_clusters.csv")
+
+        # DEBUG: Show what was actually written
+        print(f"DEBUG: Content of {level_name}_clusters.csv:")
+        with open(output_path, "r") as f:
+            print(f.read())
 
     print(f"\nSee {save_path} for csv files.")
     print("\nthe end")
@@ -1071,13 +1113,15 @@ async def generate_clusters(
         example_ids = [s["example_id"] for s in cat_summaries]
         category_examples = [e for e in examples if e.id in example_ids]
 
+        # no skipping categories that are problematic
+
         print(f"\n\nStarting to cluster examples that belong to category '{category}'")
 
         try:
             category_updates, category_hierarchy = cluster_category_examples(
                 category,
                 category_examples,
-                summaries,
+                cat_summaries,
                 total_examples,
                 hierarchy,
             )
