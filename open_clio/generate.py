@@ -40,7 +40,7 @@ DEFAULT_SUMMARIZATION_CONCURRENCY = 5
 
 class ResponseFormatter(BaseModel):
     summary: str = Field(
-        description="A structured summary of the support conversation in the format: 'User requested [ISSUE_TYPE] help with [SPECIFIC_PRODUCT] for [LANGUAGE/FRAMEWORK] implementation'"
+        description="A structured summary of the support conversation that captures the main task, request, or purpose. Focus on what the user is asking for, be specific about the subject matter or domain, and include context about the purpose or use case when relevant. Do NOT include phrases like 'User requested' or 'I understand' - start directly with the action/task."
     )
     category: str = Field(
         description="The main product category this support request belongs to. Must be one of: 'LangChain OSS', 'LangSmith product', 'LangGraph OSS', 'LangGraph Platform/Studio', 'LangSmith deployment', 'Admin/Account management', 'Unrelated'"
@@ -59,7 +59,7 @@ structured_llm = llm.with_structured_output(ResponseFormatter)
 
 
 async def summarize_example(
-    example: ls_schemas.Example, partitions: dict[str, str]
+    example: ls_schemas.Example, partitions: dict[str, str], summary_prompt: str
 ) -> schemas.ExampleSummary | None:
     """Use an LLM to generate a summary for a single example."""
     conversation_text = str(example.inputs)
@@ -72,7 +72,9 @@ async def summarize_example(
     else:
         partitions_str = "\n".join(f"- {k}: {v}" for k, v in partitions.items())
 
-    summarize_instr = SUMMARIZE_INSTR.format(partitions=partitions_str)
+    summary_prompt_w_partitions = SUMMARIZE_INSTR.format(
+        summary_prompt=summary_prompt, partitions=partitions_str
+    )
 
     messages = [
         {
@@ -85,7 +87,7 @@ async def summarize_example(
         },
         {
             "role": "user",
-            "content": f"{summarize_instr}",
+            "content": f"{summary_prompt_w_partitions}",
         },
         {
             "role": "assistant",
@@ -99,6 +101,7 @@ async def summarize_example(
         # With structured output, response has summary and category fields
         res = response.summary
         category = response.category
+        print(f"Summary: {res}")
 
     except Exception as e:
         logger.error(f"Error processing example {example.id}: {e}")
@@ -108,7 +111,7 @@ async def summarize_example(
 
 
 async def summarize_all(
-    examples: list, partitions: dict[str, str], *, max_concurrency: int
+    examples: list, partitions: dict[str, str], summary_prompt: str, *, max_concurrency: int
 ) -> list[schemas.ExampleSummary | None]:
     """Generate summaries for all examples in the dataset."""
     print("Generating example summaries")
@@ -117,7 +120,7 @@ async def summarize_all(
 
     # TODO: add progress bar
     tasks = [
-        gated_coro(summarize_example(example, partitions), semaphore)
+        gated_coro(summarize_example(example, partitions, summary_prompt), semaphore)
         for example in examples
     ]
     summaries = await asyncio.gather(*tasks)  # each coroutine as separate task in list
@@ -599,7 +602,7 @@ def generate_cluster_descriptions(
                 "name": name,
                 "description": description,
                 "size": len(cluster_summaries),
-                "summaries": [s["summary"] for s in cluster_summary_infos], 
+                "summaries": [s["summary"] for s in cluster_summary_infos],
                 "examples": [s["example_id"] for s in cluster_summary_infos],
                 "category": category,
                 "id": cluster_id,
@@ -734,7 +737,7 @@ def cluster_category_examples(
                 "id": uuid.uuid4(),
                 "size": len(summaries),
                 "summaries": [s["summary"] for s in summaries],
-                "examples": [s["example_id"] for s in summaries],  # use examples everywhere not example_ids
+                "examples": [s["example_id"] for s in summaries],
                 "category": category,
             }
         ]
@@ -742,10 +745,7 @@ def cluster_category_examples(
 
     print("\nBuilding the next level of clusters...")
 
-    # start hierarchical clustering
-    #one
-    # category_hierarchy = {"level_0": cluster_info, "max_level": 0}
-    # current_clusters = cluster_info
+    # previously index based, now based on uuid
     cluster_info_dict = {cluster["id"]: cluster for cluster in cluster_info}
     category_hierarchy = {"level_0": cluster_info_dict, "max_level": 0}
     current_clusters = cluster_info_dict
@@ -830,10 +830,6 @@ def cluster_category_examples(
 
     category_updates = []
     for example in examples:
-        print("debug")
-        print(example)
-        # Build nested clustering structure
-
         # find the corresponding summary
         example_summary = None
         for summary in summaries:
@@ -843,12 +839,12 @@ def cluster_category_examples(
 
         if example_summary is None:
             print(f"No summary found for example {example.id}")
-            continue # skip examples that didn't work
+            continue  # skip examples that didn't work
 
         clustering = {}
         for level_key, level_assignments in example_assignments.items():
             if example.id in level_assignments:
-                cluster_id = level_assignments[example.id] #not example_id anymore
+                cluster_id = level_assignments[example.id]  # not example_id anymore
                 # Find cluster info for this level
                 if level_key == "level_0":
                     cluster_info_for_level = cluster_info_dict
@@ -862,7 +858,7 @@ def cluster_category_examples(
                     }
 
         update = {
-            "id": example.id, #was example_id
+            "id": example.id,  # was example_id
             "metadata": example.metadata,
             "inputs": example.inputs,
             "outputs": {
@@ -1016,7 +1012,7 @@ def validate_hierarchy(hierarchy: Sequence[int], n_examples: int) -> None:
             f"Cannot specify more base clusters ({hierarchy[0]}) than"
             " there are dataset examples ({n_examples})."
         )
-    suggested_max_k = max(int(np.sqrt(n_examples)), n_examples // 3) #max not min
+    suggested_max_k = max(int(np.sqrt(n_examples)), n_examples // 3)  # max not min
     if hierarchy[0] > suggested_max_k:
         warnings.warn(
             f"Warning: {hierarchy[0]} base clusters may be too many for {n_examples} examples."
@@ -1034,6 +1030,7 @@ def validate_hierarchy(hierarchy: Sequence[int], n_examples: int) -> None:
 async def generate_clusters(
     dataset_name: str,
     hierarchy: list,
+    summary_prompt: str,  # TODO
     *,
     partitions: dict | None = None,
     sample: int | None = None,
@@ -1053,7 +1050,7 @@ async def generate_clusters(
     print(f"Loaded {total_examples} total examples, generating summaries...")
 
     summaries = await summarize_all(
-        examples, partitions, max_concurrency=max_concurrency
+        examples, partitions, summary_prompt, max_concurrency=max_concurrency
     )
     summaries_by_category = defaultdict(list)
     # Prepare to process examples by category

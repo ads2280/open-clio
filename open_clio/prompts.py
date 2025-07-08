@@ -3,34 +3,9 @@ Centralized prompt configs for conversation analysis
 """
 
 SUMMARIZE_INSTR = """
-Your job is to analyze this conversation and extract the key details about what the user is asking the AI assistant to do. 
-Focus on capturing the main task, request, or purpose of the conversation in a clear, concise way.
+{summary_prompt}
 
-Provide a structured summary in this format:
-"[ACTION/TASK] with [SPECIFIC_TOPIC/SUBJECT] for [CONTEXT/PURPOSE]"
-
-Examples:
-- "help with writing Python code for data analysis project"
-- "explain machine learning concepts for academic research"
-- "create marketing content for social media campaign" 
-- "debug software issues for web application development"
-- "provide advice on career planning for recent graduate"
-- "analyze financial data for investment decision making"
-- "generate creative content for storytelling project"
-- "answer questions about historical events for educational purposes"
-
-Guidelines:
-- Focus on what the user is asking the AI to do or help with
-- Be specific about the subject matter or domain when clear
-- Leave out redundant words like "User requested" or "I understand"
-- Include context about the purpose, use case, or technical details when relevant to the domain
-- Capture the core intent of the conversation
-- Don't include any personally identifiable information (PII) like names, locations, phone numbers, email addresses
-- Don't include any proper nouns
-- Be clear, descriptive and specific 
-- Keep it concise - aim for one clear sentence
-
-Provide your summary of the support conversation in <answer> tags and select the most appropriate category for this conversation from the provided list:
+Provide your summary in <answer> tags and select the most appropriate category for this conversation from the provided list:
 {partitions}
 """
 
