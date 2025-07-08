@@ -20,37 +20,50 @@ from prompts import (
     ASSIGN_CLUSTER_INSTR,
     RENAME_CLUSTER_INSTR,
     SUMMARIZE_INSTR,
-) 
+)
 
 from collections import defaultdict
-from typing import Optional, List, Any
+from typing import Optional
 import asyncio
 from anthropic import AsyncAnthropic
 from langchain_anthropic import ChatAnthropic
 from pydantic import BaseModel, Field
 
+
 class ResponseFormatter(BaseModel):
-    summary: str = Field(description="A structured summary of the support conversation in the format: 'User requested [ISSUE_TYPE] help with [SPECIFIC_PRODUCT] for [LANGUAGE/FRAMEWORK] implementation'")
-    category: str = Field(description="The main product category this support request belongs to. Must be one of: 'LangChain OSS', 'LangSmith product', 'LangGraph OSS', 'LangGraph Platform/Studio', 'LangSmith deployment', 'Admin/Account management', 'Unrelated'")
+    summary: str = Field(
+        description="A structured summary of the support conversation in the format: 'User requested [ISSUE_TYPE] help with [SPECIFIC_PRODUCT] for [LANGUAGE/FRAMEWORK] implementation'"
+    )
+    category: str = Field(
+        description="The main product category this support request belongs to. Must be one of: 'LangChain OSS', 'LangSmith product', 'LangGraph OSS', 'LangGraph Platform/Studio', 'LangSmith deployment', 'Admin/Account management', 'Unrelated'"
+    )
+
 
 client = Client()
 claude = wrappers.wrap_anthropic(anthropic.Anthropic())
-embedder = OpenAIEmbeddings(model="text-embedding-3-small") # openai embeddings
+embedder = OpenAIEmbeddings(model="text-embedding-3-small")  # openai embeddings
 async_claude = AsyncAnthropic()
-llm = ChatAnthropic(model="claude-sonnet-4-20250514", temperature=0.2, max_tokens=100).with_structured_output(ResponseFormatter)
+llm = ChatAnthropic(
+    model="claude-sonnet-4-20250514", temperature=0.2, max_tokens=100
+).with_structured_output(ResponseFormatter)
 
-async def generate_single_summary(example, semaphore, counter, total_examples, partitions):
+
+async def generate_single_summary(
+    example, semaphore, counter, total_examples, partitions
+):
     """Use an LLM to generate a summary for a single example."""
     async with semaphore:
         conversation_text = str(example.inputs)
-        
+
         # If no partitions provided, all in same category
         if not partitions:
-            partitions_str = "- Default: All items in the dataset belong to this category by default"
+            partitions_str = (
+                "- Default: All items in the dataset belong to this category by default"
+            )
         else:
-            partitions_str = '\n'.join(f'- {k}: {v}' for k, v in partitions.items())
-            
-        summarize_instr = SUMMARIZE_INSTR.format(partitions=partitions_str) 
+            partitions_str = "\n".join(f"- {k}: {v}" for k, v in partitions.items())
+
+        summarize_instr = SUMMARIZE_INSTR.format(partitions=partitions_str)
 
         messages = [
             {
@@ -62,8 +75,8 @@ async def generate_single_summary(example, semaphore, counter, total_examples, p
                 "role": "user",
                 "content": f"{summarize_instr}",
             },
-                        {
-                "role": "assistant", 
+            {
+                "role": "assistant",
                 "content": "Sure, I'll analyze this conversation and provide a structured summary: <answer>",
             },
         ]
@@ -74,7 +87,7 @@ async def generate_single_summary(example, semaphore, counter, total_examples, p
 
         try:
             response = await llm.ainvoke(messages)
-            
+
             # With structured output, response has summary and category fields
             res = response.summary
             category = response.category
@@ -96,18 +109,22 @@ async def generate_single_summary(example, semaphore, counter, total_examples, p
             "outputs": {"summary": res, "category": category},
         }
 
-async def summarize_all(examples: list, dataset_name: str, partitions: dict, max_concurrent: int = 5):
+
+async def summarize_all(
+    examples: list, dataset_name: str, partitions: dict, max_concurrent: int = 5
+):
     """Generate summaries for all examples in the dataset."""
     print(f"Generating summaries for dataset: {dataset_name}")
 
     total_ex = len(examples)
 
     semaphore = asyncio.Semaphore(max_concurrent)
-    counter = [0]  
+    counter = [0]
 
     start_time = time.time()
     tasks = [
-        generate_single_summary(example, semaphore, counter, total_ex, partitions) for example in examples
+        generate_single_summary(example, semaphore, counter, total_ex, partitions)
+        for example in examples
     ]
     updates = await asyncio.gather(*tasks)  # each coroutine as separate task in list
 
@@ -118,21 +135,24 @@ async def summarize_all(examples: list, dataset_name: str, partitions: dict, max
     # timing
     total_time = time.time() - start_time
     rate = total_ex / total_time if total_time > 0 else 0
-    print("\nSuccess, summaries complete! Reloading the dataset with summaries (and categories if applicable)...")
+    print(
+        "\nSuccess, summaries complete! Reloading the dataset with summaries (and categories if applicable)..."
+    )
     print(f"(total time {total_time:.2f}s, {rate:.2f} iterations/second on average)")
-    
+
     return updates
+
 
 def perform_base_clustering(summaries, category_k, id_offset, category):
     """
     Perform the initial base clustering for a category.
-    
+
     Args:
         summaries: List of summaries to cluster
         category_k: Number of clusters to create
         id_offset: Offset for cluster IDs
         category: Category name for logging
-    
+
     Returns:
         tuple: (cluster_info, cluster_labels)
     """
@@ -154,20 +174,24 @@ def perform_base_clustering(summaries, category_k, id_offset, category):
     print(f"silhoutte score: {silhouette}")
 
     # generate descriptions for all clusters
-    cluster_info = generate_cluster_descriptions(cluster_labels, summaries, embeddings, category)
-    
+    cluster_info = generate_cluster_descriptions(
+        cluster_labels, summaries, embeddings, category
+    )
+
     return cluster_info, cluster_labels
+
 
 def deduplicate_base_clusters(cluster_info, category_ktop):
     pass
 
+
 def embed_cluster_descriptions(current_clusters):
     """
     Step 1: Embed cluster descriptions for hierarchical clustering.
-    
+
     Args:
         current_clusters: Dictionary of current cluster information
-    
+
     Returns:
         tuple: (cluster_embeddings, cluster_ids)
     """
@@ -182,17 +206,18 @@ def embed_cluster_descriptions(current_clusters):
     print(f"Embedding {len(cluster_ids)} cluster descriptions...")
     cluster_embeddings = np.array(embedder.embed_documents(cluster_names_descriptions))
     time.sleep(1.0)  # Sleep after embedding step
-    
+
     return cluster_embeddings, cluster_ids
+
 
 def generate_neighborhoods(cluster_embeddings, num_clusters):
     """
     Step 2: Generate neighborhoods using k-means clustering.
-    
+
     Args:
         cluster_embeddings: Embeddings of cluster descriptions
         num_clusters: Number of current clusters
-    
+
     Returns:
         tuple: (neighborhood_labels, k_neighborhoods)
     """
@@ -205,21 +230,23 @@ def generate_neighborhoods(cluster_embeddings, num_clusters):
         n_clusters=k_neighborhoods, random_state=42, n_init=10, max_iter=300
     )
     neighborhood_labels = kmeans_nbh.fit_predict(cluster_embeddings)
-    
+
     return neighborhood_labels, k_neighborhoods
 
-def propose_clusters_from_neighborhoods(current_clusters, cluster_ids, neighborhood_labels, 
-                                      k_neighborhoods, target_clusters):
+
+def propose_clusters_from_neighborhoods(
+    current_clusters, cluster_ids, neighborhood_labels, k_neighborhoods, target_clusters
+):
     """
     Step 3: Propose new clusters for each neighborhood.
-    
+
     Args:
         current_clusters: Dictionary of current cluster information
         cluster_ids: List of cluster IDs
         neighborhood_labels: Labels indicating which neighborhood each cluster belongs to
         k_neighborhoods: Number of neighborhoods
         target_clusters: Target number of clusters for this level
-    
+
     Returns:
         list: Proposed cluster names
     """
@@ -309,21 +336,20 @@ cluster names that could encompass multiple sub-clusters within the LangChain ec
             time.sleep(1.0)  # Sleep after each neighborhood proposal
 
         except Exception as e:
-            print(
-                f"Error proposing clusters for neighborhood {neighborhood_id}: {e}"
-            )
+            print(f"Error proposing clusters for neighborhood {neighborhood_id}: {e}")
             time.sleep(1.0)  # Sleep even on error to respect rate limits
 
     return proposed
 
+
 def deduplicate_proposed_clusters(proposed, target_clusters):
     """
     Step 4: Deduplicate proposed clusters across neighborhoods.
-    
+
     Args:
         proposed: List of proposed cluster names
         target_clusters: Target number of clusters
-    
+
     Returns:
         list: Deduplicated cluster names
     """
@@ -333,10 +359,8 @@ def deduplicate_proposed_clusters(proposed, target_clusters):
         return []
     if len(proposed) <= target_clusters:
         return proposed
-    
-    cluster_text = "\n".join(
-        [f"<cluster>{name}</cluster>" for name in proposed]
-    )
+
+    cluster_text = "\n".join([f"<cluster>{name}</cluster>" for name in proposed])
     deduplicating_user_prompt = DEDUPLICATE_CLUSTERS_INSTR.format(
         cluster_text=cluster_text,
         target_clusters=target_clusters,
@@ -374,9 +398,7 @@ I understand. I'll deduplicate the cluster names into approximately {target_clus
                 line = line.strip()
                 if line and (line[0].isdigit() or line.startswith("-")):
                     name = (
-                        line.split(".", 1)[1].strip()
-                        if "." in line
-                        else line.strip()
+                        line.split(".", 1)[1].strip() if "." in line else line.strip()
                     )
                     if name.startswith("[") and name.endswith("]"):
                         name = name[1:-1]
@@ -393,14 +415,15 @@ I understand. I'll deduplicate the cluster names into approximately {target_clus
     time.sleep(2.0)  # Sleep after deduplication step
     return deduplicated
 
+
 def assign_clusters_to_higher_level(current_clusters, deduplicated):
     """
     Step 5: Assign clusters to higher level clusters.
-    
+
     Args:
         current_clusters: Dictionary of current cluster information
         deduplicated: List of deduplicated higher-level cluster names
-    
+
     Returns:
         dict: Mapping of cluster_id to assigned higher-level cluster name
     """
@@ -411,9 +434,7 @@ def assign_clusters_to_higher_level(current_clusters, deduplicated):
     # Clio randomly shuffles higher level cluster names to avoid order bias (what?)
     shuffled = deduplicated.copy()
     random.shuffle(shuffled)
-    higher_level_text = "\n".join(
-        [f"<cluster>{name}</cluster>" for name in shuffled]
-    )
+    higher_level_text = "\n".join([f"<cluster>{name}</cluster>" for name in shuffled])
 
     for cluster_id, cluster_info_item in current_clusters.items():
         assign_user_prompt = ASSIGN_CLUSTER_INSTR.format(
@@ -478,17 +499,18 @@ appropriately within the LangChain support structure.
 
     return assignments
 
+
 def rename_higher_level_clusters(current_clusters, assignments, level, category):
     """
     Step 6: Rename higher level clusters based on assignments.
-    
+
     Args:
         current_clusters: Dictionary of current cluster information
         assignments: Mapping of cluster_id to assigned higher-level cluster name
         deduplicated: List of deduplicated higher-level cluster names
         level: Current hierarchy level
         category: Category name
-    
+
     Returns:
         dict: New level clusters with names and descriptions
     """
@@ -571,6 +593,7 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
 
     return new_lvl_clusters
 
+
 def generate_cluster_descriptions(cluster_labels, summaries, embeddings, category):
     cluster_info = {}
     unique_clusters = np.unique(cluster_labels)
@@ -582,10 +605,14 @@ def generate_cluster_descriptions(cluster_labels, summaries, embeddings, categor
         ]
 
         # get contrastive examples
-        contrastive_summaries = get_contrastive_summaries(cluster_mask, embeddings, summaries)
+        contrastive_summaries = get_contrastive_summaries(
+            cluster_mask, embeddings, summaries
+        )
 
         # use them to generate the description for this cluster
-        name, summary = generate_single_cluster_description(cluster_summaries, contrastive_summaries, cluster_id)
+        name, summary = generate_single_cluster_description(
+            cluster_summaries, contrastive_summaries, cluster_id
+        )
 
         cluster_info[cluster_id] = {
             "name": name,
@@ -599,6 +626,7 @@ def generate_cluster_descriptions(cluster_labels, summaries, embeddings, categor
         time.sleep(1.0)  # Increased sleep time for base cluster generation
 
     return cluster_info
+
 
 def get_contrastive_summaries(cluster_mask, embeddings, summaries):
     """
@@ -617,9 +645,7 @@ def get_contrastive_summaries(cluster_mask, embeddings, summaries):
 
     if len(non_cluster_summaries) > 0:
         # calculate distances to centroid
-        distances = np.linalg.norm(
-            non_cluster_embeddings - cluster_centroid, axis=1
-        )
+        distances = np.linalg.norm(non_cluster_embeddings - cluster_centroid, axis=1)
 
         # get closest non-cluster summaries
         n_contrastive = min(50, len(non_cluster_summaries))
@@ -630,7 +656,10 @@ def get_contrastive_summaries(cluster_mask, embeddings, summaries):
 
     return contrastive_summaries
 
-def generate_single_cluster_description(cluster_summaries, contrastive_summaries, cluster_id):
+
+def generate_single_cluster_description(
+    cluster_summaries, contrastive_summaries, cluster_id
+):
     max_summaries = 15
     if len(cluster_summaries) > max_summaries:
         cluster_sample = np.random.choice(
@@ -689,12 +718,15 @@ def generate_single_cluster_description(cluster_summaries, contrastive_summaries
 
     return name, summary
 
-def cluster_category_examples(category, category_examples, total_examples, id_offset, hierarchy):
+
+def cluster_category_examples(
+    category, category_examples, total_examples, id_offset, hierarchy
+):
     """
     Orchestrates hierarchical clustering for each user-defined category/partition.
     Defaults to processing all examples if no categories/partitions provided.
     """
-    
+
     # Extract summaries and example IDs for this category
     summaries = []
     example_ids = []
@@ -708,33 +740,40 @@ def cluster_category_examples(category, category_examples, total_examples, id_of
     category_k = max(1, category_k)
     category_ktop = int(hierarchy[-1] * len(category_examples) / total_examples)
 
-    print(f"Examples: {len(category_examples)}\nBase clusters: {category_k}\nTarget top clusters: {category_ktop}")
+    print(
+        f"Examples: {len(category_examples)}\nBase clusters: {category_k}\nTarget top clusters: {category_ktop}"
+    )
 
     # Perform base clustering
-    cluster_info, cluster_labels = perform_base_clustering(summaries, category_k, id_offset, category)
+    cluster_info, cluster_labels = perform_base_clustering(
+        summaries, category_k, id_offset, category
+    )
     # deduplicate_base_clusters(cluster_info, category_ktop) at some point
 
-    print(f"\nBuilding the next level of clusters...")
+    print("\nBuilding the next level of clusters...")
 
     # start hierarchical clustering
     category_hierarchy = {"level_0": cluster_info, "max_level": 0}
     current_clusters = cluster_info
     n_base = len(current_clusters)
-    
+
     # Track example assignments at each level
     example_assignments = {
-        "level_0": {example_id: cluster_id for example_id, cluster_id in zip(example_ids, cluster_labels)}
+        "level_0": {
+            example_id: cluster_id
+            for example_id, cluster_id in zip(example_ids, cluster_labels)
+        }
     }
 
     # Use user-provided hierarchy instead of geometric progression
     # hierarchy = [k, x, ktop] where k is base clusters, x is intermediate level, ktop is target
     levels = len(hierarchy)
     level_sizes = hierarchy  # TODO - decide if we skip the first element (base k) since we already have n_base clusters
-    
+
     # Scale the hierarchy proportionally to this category's size
     category_ratio = len(category_examples) / total_examples
     scaled_level_sizes = [max(2, int(size * category_ratio)) for size in level_sizes]
-    
+
     full_hierarchy = [n_base] + scaled_level_sizes
     print(f"(target hierarchy for this dataset: {full_hierarchy})")
 
@@ -750,13 +789,18 @@ def cluster_category_examples(category, category_examples, total_examples, id_of
         cluster_embeddings, cluster_ids = embed_cluster_descriptions(current_clusters)
 
         # 2) generate neighbourhoods using k-means
-        neighborhood_labels, k_neighborhoods = generate_neighborhoods(cluster_embeddings, len(current_clusters))
+        neighborhood_labels, k_neighborhoods = generate_neighborhoods(
+            cluster_embeddings, len(current_clusters)
+        )
 
         # 3) propose new clusters for each neighborhood
         target_clusters = scaled_level_sizes[level - 1]
         proposed = propose_clusters_from_neighborhoods(
-            current_clusters, cluster_ids, neighborhood_labels, 
-            k_neighborhoods, target_clusters
+            current_clusters,
+            cluster_ids,
+            neighborhood_labels,
+            k_neighborhoods,
+            target_clusters,
         )
 
         # 4) deduplicate across neighborhoods
@@ -766,7 +810,9 @@ def cluster_category_examples(category, category_examples, total_examples, id_of
         assignments = assign_clusters_to_higher_level(current_clusters, deduplicated)
 
         # 6) rename higher level clusters based on assignments
-        new_lvl_clusters = rename_higher_level_clusters(current_clusters, assignments, level, category)
+        new_lvl_clusters = rename_higher_level_clusters(
+            current_clusters, assignments, level, category
+        )
 
         # Track example assignments for this level
         example_assignments[f"level_{level}"] = {}
@@ -777,7 +823,9 @@ def cluster_category_examples(category, category_examples, total_examples, id_of
                 # Find the cluster ID for this higher-level cluster name
                 for hl_cluster_id, hl_cluster_info in new_lvl_clusters.items():
                     if hl_cluster_info["name"] == higher_level_cluster_name:
-                        example_assignments[f"level_{level}"][example_id] = hl_cluster_id
+                        example_assignments[f"level_{level}"][example_id] = (
+                            hl_cluster_id
+                        )
                         break
 
         category_hierarchy[f"level_{level}"] = new_lvl_clusters
@@ -787,12 +835,14 @@ def cluster_category_examples(category, category_examples, total_examples, id_of
         print(f"Level {level} complete, checking if more levels are needed...")
         # after this loop term, we have new_lvl_clusters dict with new level clusters
 
-    print(f"No more levels needed, hierarchical clustering complete for category '{category}'!")
+    print(
+        f"No more levels needed, hierarchical clustering complete for category '{category}'!"
+    )
 
     category_updates = []
     for i, example_id in enumerate(example_ids):
         example = category_examples[i]
-        
+
         # Build nested clustering structure
         clustering = {}
         for level_key, level_assignments in example_assignments.items():
@@ -803,11 +853,11 @@ def cluster_category_examples(category, category_examples, total_examples, id_of
                     cluster_info_for_level = cluster_info
                 else:
                     cluster_info_for_level = category_hierarchy[level_key]
-                
+
                 if cluster_id in cluster_info_for_level:
                     clustering[level_key] = {
                         "id": int(cluster_id),
-                        "name": cluster_info_for_level[cluster_id]["name"]
+                        "name": cluster_info_for_level[cluster_id]["name"],
                     }
 
         update = {
@@ -817,16 +867,17 @@ def cluster_category_examples(category, category_examples, total_examples, id_of
             "outputs": {
                 "summary": example.outputs["summary"],
                 "category": example.outputs["category"],
-                "clustering": clustering
+                "clustering": clustering,
             },
         }
         category_updates.append(update)
 
     # calculate next cluster id offset
-    max_cluster_id = max(cluster_info.keys()) if cluster_info else id_offset  
+    max_cluster_id = max(cluster_info.keys()) if cluster_info else id_offset
     next_offset = max_cluster_id + 1
 
     return category_updates, category_hierarchy, next_offset
+
 
 def save_results(client, dataset_name, all_updates, combined_hierarchy, save_path):
     # print results summary
@@ -837,7 +888,7 @@ def save_results(client, dataset_name, all_updates, combined_hierarchy, save_pat
         if hierarchy["max_level"] > 0:
             for level in range(1, hierarchy["max_level"] + 1):
                 print(f"Level {level} clusters: {len(hierarchy[f'level_{level}'])}")
-                
+
     # update dataset with all cluster assignments
     print("\nUpdating the dataset with clustering results...")
     client.update_examples(dataset_name=dataset_name, updates=all_updates)
@@ -849,24 +900,28 @@ def save_results(client, dataset_name, all_updates, combined_hierarchy, save_pat
     examples_data = []
     for update in all_updates:
         clustering = update["outputs"]["clustering"]
-        
+
         # Get base cluster info
         base_cluster_id = clustering.get("level_0", {}).get("id", None)
         base_cluster_name = clustering.get("level_0", {}).get("name", "")
-        
+
         # Get intermediate cluster levels (level_1, level_2, etc.)
         intermediate_clusters = {}
         for level_key in clustering.keys():
             if level_key != "level_0":
                 level_num = level_key.split("_")[1]
-                intermediate_clusters[f"level_{level_num}_id"] = clustering[level_key].get("id", None)
-                intermediate_clusters[f"level_{level_num}_name"] = clustering[level_key].get("name", "")
-        
+                intermediate_clusters[f"level_{level_num}_id"] = clustering[
+                    level_key
+                ].get("id", None)
+                intermediate_clusters[f"level_{level_num}_name"] = clustering[
+                    level_key
+                ].get("name", "")
+
         # Get top level info (highest level reached)
         top_level = max(clustering.keys()) if clustering else "level_0"
         top_cluster_id = clustering.get(top_level, {}).get("id", None)
         top_cluster_name = clustering.get(top_level, {}).get("name", "")
-        
+
         # Create full example text (combine inputs if available)
         full_example = ""
         if "inputs" in update and update["inputs"]:
@@ -881,7 +936,7 @@ def save_results(client, dataset_name, all_updates, combined_hierarchy, save_pat
                 full_example = update["inputs"]
         else:
             full_example = update["outputs"]["summary"]  # Fallback to summary
-        
+
         row_data = {
             "example_id": update["id"],
             "full_example": full_example,
@@ -890,21 +945,23 @@ def save_results(client, dataset_name, all_updates, combined_hierarchy, save_pat
             "base_cluster_id": base_cluster_id,
             "base_cluster_name": base_cluster_name,
         }
-        
+
         # Add intermediate cluster levels
         row_data.update(intermediate_clusters)
-        
+
         # Add top cluster info
-        row_data.update({
-            "top_cluster_id": top_cluster_id,
-            "top_cluster_name": top_cluster_name,
-        })
-        
-        examples_data.append(row_data) # examples_data has row_data for every example
+        row_data.update(
+            {
+                "top_cluster_id": top_cluster_id,
+                "top_cluster_name": top_cluster_name,
+            }
+        )
+
+        examples_data.append(row_data)  # examples_data has row_data for every example
 
     examples_df = pd.DataFrame(examples_data)
     examples_df.to_csv(f"{save_path}/combined.csv", index=False)
-     # looks like: example_id,full_example,summary,category,base_cluster_id,base_cluster_name, [intermediates], top_cluster_id,top_cluster_name
+    # looks like: example_id,full_example,summary,category,base_cluster_id,base_cluster_name, [intermediates], top_cluster_id,top_cluster_name
     print(f"Saved {len(examples_data)} examples to combined.csv")
 
     # 2. csv by level: Save ALL clusters from ALL levels across ALL categories
@@ -944,14 +1001,18 @@ def save_results(client, dataset_name, all_updates, combined_hierarchy, save_pat
     print(f"\nSee {save_path} for csv files.")
     print("\nthe end")
 
+
 def load_config(config_path="config.json"):
     """Load configuration from JSON file"""
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"Config file {config_path} not found. Please create {config_path} with your configuration.")
+        print(
+            f"Config file {config_path} not found. Please create {config_path} with your configuration."
+        )
         exit(1)
+
 
 def validate_hierarchy(hierarchy, n_examples):
     """check if hierarchy makes sense"""
@@ -959,54 +1020,72 @@ def validate_hierarchy(hierarchy, n_examples):
     suggested_max_k = min(int(np.sqrt(n_examples)), n_examples // 3)
     if hierarchy[0] > suggested_max_k:
         suggested_k = suggested_max_k
-        print(f"Warning: {hierarchy[0]} base clusters seems like too many for {n_examples} examples")
+        print(
+            f"Warning: {hierarchy[0]} base clusters seems like too many for {n_examples} examples"
+        )
         print(f"Consider starting with <={suggested_k} clusters")
-     
+
     # decreasing numbers
-    for i in range(len(hierarchy)-1):
-        if hierarchy[i] <= hierarchy[i+1]:
-            print(f"Warning: Level {i} has {hierarchy[i]} clusters, level {i+1} has {hierarchy[i+1]}")
+    for i in range(len(hierarchy) - 1):
+        if hierarchy[i] <= hierarchy[i + 1]:
+            print(
+                f"Warning: Level {i} has {hierarchy[i]} clusters, level {i + 1} has {hierarchy[i + 1]}"
+            )
+
 
 def generate_clusters(
     dataset_name: str,
-    save_path: str, #combined.csv
+    save_path: str,  # combined.csv
     hierarchy: list,
     partitions: Optional[dict] = None,
-    sample: Optional[int] = None
+    sample: Optional[int] = None,
 ):
-
     # load data
     print(f"Loading and summarizing examples from '{dataset_name}' dataset")
-    validate_hierarchy(hierarchy, total_examples) #Gives you an option to quit
+    validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
 
-    examples = list(client.list_examples(dataset_name=dataset_name, limit=sample if sample else None))
+    examples = list(
+        client.list_examples(
+            dataset_name=dataset_name, limit=sample if sample else None
+        )
+    )
     total_examples = len(examples)
     print(f"Loaded {total_examples} total examples, generating summaries...")
 
-
     asyncio.run(summarize_all(examples, dataset_name, partitions, max_concurrent=5))
-    time.sleep(30) # TODO fix
-    
+    time.sleep(30)  # TODO fix
+
     # Reload data to get the updated examples with summaries
-    examples = list(client.list_examples(dataset_name=dataset_name, limit=sample if sample else None))
+    examples = list(
+        client.list_examples(
+            dataset_name=dataset_name, limit=sample if sample else None
+        )
+    )
 
     # Prepare to process examples by category
     examples_by_category = defaultdict(list)
     for example in examples:
         examples_by_category[example.outputs["category"]].append(example)
-    
 
-        
-    print(f"\nThe dataset contains the following categories: {list(examples_by_category.keys())}") 
-    
+    print(
+        f"\nThe dataset contains the following categories: {list(examples_by_category.keys())}"
+    )
+
     # Process categories one at a time and append to an updates list
     all_updates = []
     combined_hierarchy = {"categories": {}}
     id_offset = 0
 
-    skip_categories = ["Error extracting category", "<UNKNOWN>", "Unknown"] # one of these should always be what we provide as a 'misc' category TODO
+    skip_categories = [
+        "Error extracting category",
+        "<UNKNOWN>",
+        "Unknown",
+    ]  # one of these should always be what we provide as a 'misc' category TODO
 
-    for category, category_examples in examples_by_category.items(): #enumerate, can count later >> TODO
+    for (
+        category,
+        category_examples,
+    ) in examples_by_category.items():  # enumerate, can count later >> TODO
         if category in skip_categories:
             print(
                 f"\n\nSkipping problematic category: {category} ({len(category_examples)} examples)"
@@ -1015,10 +1094,12 @@ def generate_clusters(
 
         print(f"\n\nStarting to cluster examples that belong to category '{category}'")
         validate_hierarchy(hierarchy, len(category_examples))
-    
+
         try:
-            category_updates, category_hierarchy, next_offset = cluster_category_examples(  #TODO - ideally its the same for anything, same set of reusable methods whether categories, no categories, whatever levle youo're add
-                category, category_examples, total_examples, id_offset, hierarchy
+            category_updates, category_hierarchy, next_offset = (
+                cluster_category_examples(  # TODO - ideally its the same for anything, same set of reusable methods whether categories, no categories, whatever levle youo're add
+                    category, category_examples, total_examples, id_offset, hierarchy
+                )
             )
             # TODO play with updates logic --> combined.csv should be the only result
 
@@ -1026,14 +1107,16 @@ def generate_clusters(
             combined_hierarchy["categories"][category] = category_hierarchy  # TODO
             id_offset = next_offset
 
-            print(f"Searching for more categories to cluster...")
+            print("Searching for more categories to cluster...")
             time.sleep(3.0)  # Sleep between categories
 
         except Exception as e:
-            print(f"ERROR processing category {category}: {e}") #TODO better error handling
+            print(
+                f"ERROR processing category {category}: {e}"
+            )  # TODO better error handling
             continue
 
-    print(f"\nAll categories have beenprocessed, clustering complete!")
+    print("\nAll categories have beenprocessed, clustering complete!")
 
     # Save results to csvs
     save_results(client, dataset_name, all_updates, combined_hierarchy, save_path)
@@ -1043,29 +1126,27 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Running Clio clustering")
     parser.add_argument("--dataset", help="Override dataset name")
     args = parser.parse_args()
-    
+
     config = load_config()
-    
+
     if args.dataset:
         config["dataset_name"] = args.dataset
-  
+
     print("Starting Clio clustering...")
     print(f"Dataset: {config['dataset_name']}")
     print(f"Save path: {config['save_path']}")
     print(f"Hierarchy (number of examples at each level): {config['hierarchy']}\n")
-    
+
     generate_clusters(
         dataset_name=config["dataset_name"],
         save_path=config["save_path"],
         hierarchy=config["hierarchy"],
         partitions=config["partitions"],
-        sample=config["sample"]
-    ) 
+        sample=config["sample"],
+    )
 
 
+# TODO bagatur/code review note,
+# neo recs,
 
-
-# TODO bagatur/code review note, 
-# neo recs, 
-
-#and make sure it works - cna prob start
+# and make sure it works - cna prob start

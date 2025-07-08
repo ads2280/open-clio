@@ -1,6 +1,7 @@
 """
 Centralized prompt configs for conversation analysis
 """
+
 SUMMARIZE_INSTR = """
 Your job is to analyze this conversation and extract the key details about what the user is asking the AI assistant to do. 
 Focus on capturing the main task, request, or purpose of the conversation in a clear, concise way.
