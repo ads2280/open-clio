@@ -209,4 +209,6 @@ __marimo__/
 
 .data
 clustering_results
+extra/
+prev/
 

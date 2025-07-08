@@ -599,10 +599,10 @@ def generate_cluster_descriptions(
                 "name": name,
                 "description": description,
                 "size": len(cluster_summaries),
-                "summaries": [s["summary"] for s in cluster_summary_infos],
+                "summaries": [s["summary"] for s in cluster_summary_infos], 
                 "examples": [s["example_id"] for s in cluster_summary_infos],
                 "category": category,
-                "id": uuid.uuid4(),
+                "id": cluster_id,
             }
         )
 
@@ -734,7 +734,7 @@ def cluster_category_examples(
                 "id": uuid.uuid4(),
                 "size": len(summaries),
                 "summaries": [s["summary"] for s in summaries],
-                "example_ids": [s["example_id"] for s in summaries],
+                "examples": [s["example_id"] for s in summaries],  # use examples everywhere not example_ids
                 "category": category,
             }
         ]
@@ -743,13 +743,18 @@ def cluster_category_examples(
     print("\nBuilding the next level of clusters...")
 
     # start hierarchical clustering
-    category_hierarchy = {"level_0": cluster_info, "max_level": 0}
-    current_clusters = cluster_info
+    #one
+    # category_hierarchy = {"level_0": cluster_info, "max_level": 0}
+    # current_clusters = cluster_info
+    cluster_info_dict = {cluster["id"]: cluster for cluster in cluster_info}
+    category_hierarchy = {"level_0": cluster_info_dict, "max_level": 0}
+    current_clusters = cluster_info_dict
+
     n_base = len(current_clusters)
 
     # Track example assignments at each level
     example_assignments = {
-        "level_0": {eid: c["id"] for c in cluster_info for eid in c["example_ids"]}
+        "level_0": {eid: c["id"] for c in cluster_info for eid in c["examples"]}
     }
 
     # Use user-provided hierarchy instead of geometric progression
@@ -825,30 +830,44 @@ def cluster_category_examples(
 
     category_updates = []
     for example in examples:
+        print("debug")
+        print(example)
         # Build nested clustering structure
+
+        # find the corresponding summary
+        example_summary = None
+        for summary in summaries:
+            if summary["example_id"] == example.id:
+                example_summary = summary
+                break
+
+        if example_summary is None:
+            print(f"No summary found for example {example.id}")
+            continue # skip examples that didn't work
+
         clustering = {}
         for level_key, level_assignments in example_assignments.items():
-            if example_id in level_assignments:
-                cluster_id = level_assignments[example_id]
+            if example.id in level_assignments:
+                cluster_id = level_assignments[example.id] #not example_id anymore
                 # Find cluster info for this level
                 if level_key == "level_0":
-                    cluster_info_for_level = cluster_info
+                    cluster_info_for_level = cluster_info_dict
                 else:
                     cluster_info_for_level = category_hierarchy[level_key]
 
                 if cluster_id in cluster_info_for_level:
                     clustering[level_key] = {
-                        "id": int(cluster_id),
+                        "id": str(cluster_id),  # for csv
                         "name": cluster_info_for_level[cluster_id]["name"],
                     }
 
         update = {
-            "id": example_id,
+            "id": example.id, #was example_id
             "metadata": example.metadata,
             "inputs": example.inputs,
             "outputs": {
-                "summary": example.outputs["summary"],
-                "category": example.outputs["category"],
+                "summary": example_summary["summary"],
+                "category": example_summary["category"],
                 "clustering": clustering,
             },
         }
@@ -858,9 +877,11 @@ def cluster_category_examples(
     return category_updates, category_hierarchy
 
 
-def save_results(client, dataset_name, all_updates, combined_hierarchy, save_path):
+def save_results(all_updates, combined_hierarchy):
     # print results summary
+    save_path = ".data/clustering_results"
     print("\nOverview of clustering results:")
+
     for category, hierarchy in combined_hierarchy["categories"].items():
         print(f"\nCategory: {category}")
         print(f"Base clusters: {len(hierarchy['level_0'])}")
@@ -995,7 +1016,7 @@ def validate_hierarchy(hierarchy: Sequence[int], n_examples: int) -> None:
             f"Cannot specify more base clusters ({hierarchy[0]}) than"
             " there are dataset examples ({n_examples})."
         )
-    suggested_max_k = min(int(np.sqrt(n_examples)), n_examples // 3)
+    suggested_max_k = max(int(np.sqrt(n_examples)), n_examples // 3) #max not min
     if hierarchy[0] > suggested_max_k:
         warnings.warn(
             f"Warning: {hierarchy[0]} base clusters may be too many for {n_examples} examples."
@@ -1012,7 +1033,6 @@ def validate_hierarchy(hierarchy: Sequence[int], n_examples: int) -> None:
 
 async def generate_clusters(
     dataset_name: str,
-    save_path: str,  # combined.csv
     hierarchy: list,
     *,
     partitions: dict | None = None,
@@ -1080,7 +1100,7 @@ async def generate_clusters(
     print("\nAll categories have been processed, clustering complete!")
 
     # Save results to csvs
-    save_results(client, dataset_name, all_updates, combined_hierarchy, save_path)
+    save_results(all_updates, combined_hierarchy)
 
 
 if __name__ == "__main__":
@@ -1095,7 +1115,6 @@ if __name__ == "__main__":
 
     print("Starting Clio clustering...")
     print(f"Dataset: {config['dataset_name']}")
-    print(f"Save path: {config['save_path']}")
     print(f"Hierarchy (number of examples at each level): {config['hierarchy']}\n")
 
     asyncio.run(generate_clusters(**config))
