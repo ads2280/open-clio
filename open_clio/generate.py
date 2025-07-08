@@ -1,33 +1,32 @@
 # updated for new ds
-from langsmith import Client
+import argparse
+import asyncio
+import json
+import os
+import random
+import time
+from collections import defaultdict
+from typing import Optional
+
 import anthropic
-from langsmith import wrappers
 import numpy as np
 import pandas as pd
-import json
-import argparse
+from anthropic import AsyncAnthropic
+from langchain_anthropic import ChatAnthropic
 from langchain_openai import OpenAIEmbeddings
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-import time
-import random
-import os
+from langsmith import Client, wrappers
 from prompts import (
+    ASSIGN_CLUSTER_INSTR,
     CRITERIA,
+    DEDUPLICATE_CLUSTERS_INSTR,
     NAME_CLUSTER_INSTR,
     PROPOSE_CLUSTERS_INSTR,
-    DEDUPLICATE_CLUSTERS_INSTR,
-    ASSIGN_CLUSTER_INSTR,
     RENAME_CLUSTER_INSTR,
     SUMMARIZE_INSTR,
 )
-
-from collections import defaultdict
-from typing import Optional
-import asyncio
-from anthropic import AsyncAnthropic
-from langchain_anthropic import ChatAnthropic
 from pydantic import BaseModel, Field
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 
 
 class ResponseFormatter(BaseModel):
