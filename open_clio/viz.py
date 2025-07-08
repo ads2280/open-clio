@@ -59,14 +59,11 @@ class ClusteringExplorer:
         """Parse member_clusters from string to list of ints"""
         if pd.isna(member_str) or member_str == "":
             return []
-        try:
-            if "np.int32" in str(member_str):
-                numbers = re.findall(r"np\.int32\((\d+)\)", str(member_str))
-                return [int(num) for num in numbers]
-            else:
-                return ast.literal_eval(str(member_str))
-        except:
-            return []
+        elif "np.int32" in str(member_str):
+            numbers = re.findall(r"np\.int32\((\d+)\)", str(member_str))
+            return [int(num) for num in numbers]
+        else:
+            return ast.literal_eval(str(member_str))
 
     def get_distinct_colors(self, n_colors: int) -> List[str]:
         """Generate distinct colors for clusters"""
@@ -538,7 +535,6 @@ def show_cluster_previews_in_sidebar(explorer: ClusteringExplorer):
             st.markdown(f"- {name}")
 
         if len(level_data) > preview_count:
-            remaining = len(level_data) - preview_count
             if st.button(
                 f"Show all {len(level_data)} clusters ↓", key=f"show_all_{level}"
             ):
@@ -635,57 +631,6 @@ def display_partition_overview(explorer: ClusteringExplorer):
         return f"{actual_levels[0]} clusters (single level)"
     else:
         return " → ".join(map(str, actual_levels)) + " clusters"
-
-
-def show_cluster_previews_in_sidebar(explorer: ClusteringExplorer):
-    """Show cluster name previews in sidebar"""
-    available_levels = []
-    for i, level_name in enumerate(explorer.level_names):
-        level_data = explorer.data.get(level_name)
-        if level_data is not None:
-            available_levels.append((i, level_data))
-
-    if not available_levels:
-        return
-
-    max_level = max([level for level, _ in available_levels])
-
-    for level, level_data in available_levels:
-        if level == 0:
-            label = "(Base)"
-        elif level == max_level:
-            label = "(Top)"
-        else:
-            label = ""
-
-        st.markdown(f"### Level {level} Clusters {label}")
-
-        # Show top 3-4 cluster names
-        preview_count = min(4, len(level_data))
-        for i, (_, cluster_row) in enumerate(level_data.head(preview_count).iterrows()):
-            # Truncate long names
-            name = cluster_row["name"]
-            if len(name) > 50:
-                name = name[:47] + "..."
-            st.markdown(f"- {name}")
-
-        if len(level_data) > preview_count:
-            remaining = len(level_data) - preview_count
-            if st.button(
-                f"Show all {len(level_data)} clusters ↓", key=f"show_all_{level}"
-            ):
-                # Navigate to this level
-                if level == max_level:
-                    st.session_state.view_mode = "clusters"
-                    st.session_state.navigation_path = []
-                else:
-                    # This is trickier - would need to implement level-specific views
-                    st.info(
-                        f"Navigate through the hierarchy to see Level {level} clusters"
-                    )
-                st.rerun()
-
-        st.markdown("")
 
 
 def display_partition_clusters(explorer: ClusteringExplorer, partition_name: str):
