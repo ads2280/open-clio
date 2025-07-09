@@ -29,7 +29,6 @@ async def test_generate_clusters() -> None:
     for filename in csv_files:
         assert (results_dir / filename).exists(), f"{filename} should exist within results directory"
 
-    # Load dataframes
     combined_df = pd.read_csv(results_dir / "combined.csv")
     level_0_df = pd.read_csv(results_dir / "level_0_clusters.csv")
     level_1_df = pd.read_csv(results_dir / "level_1_clusters.csv")
