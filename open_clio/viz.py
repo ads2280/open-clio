@@ -18,20 +18,12 @@ class ClusteringExplorer:
         self.data = {}
         self.max_level = len(self.config["hierarchy"]) - 1
         self.level_names = [f"level_{i}" for i in range(len(self.config["hierarchy"]))]
-        # Use the same save path as generate.py
         self.save_path = ".data/clustering_results"
 
     def load_config(self, config_path: str) -> dict:
         """Load configuration from JSON file"""
-        try:
-            with open(config_path, "r") as f:
-                return json.load(f)
-        except FileNotFoundError:
-            st.error(f"Config file {config_path} not found!")
-            st.stop()
-        except json.JSONDecodeError:
-            st.error(f"Invalid JSON in {config_path}")
-            st.stop()
+        with open(config_path, "r") as f:
+            return json.load(f)
 
     @st.cache_data
     def load_data(_self) -> Dict[str, pd.DataFrame]:
@@ -55,7 +47,7 @@ class ClusteringExplorer:
             st.error("Please run generate_clusters.py to generate cluster info")
             st.stop()
 
-        # Load level data files
+        # Load level data files - handle when only some levels exist
         for i in range(_self.max_level + 1):
             level_name = f"level_{i}"
             level_path = os.path.join(save_path, f"{level_name}_clusters.csv")
@@ -69,7 +61,16 @@ class ClusteringExplorer:
                     st.error(f"Error loading {level_name}_clusters.csv: {e}")
                     st.stop()
             else:
-                st.warning(f"{level_name}_clusters.csv not found in {save_path}")
+                if i == 0:  # level_0 is required
+                    st.error(f"{level_name}_clusters.csv not found in {save_path}")
+                    st.stop()
+                else:
+                    st.info(
+                        f"{level_name}_clusters.csv not found - only {i} level(s) available"
+                    )
+                    # Update max_level to reflect actual available levels
+                    _self.max_level = i - 1
+                    break
 
         return data
 
@@ -81,7 +82,10 @@ class ClusteringExplorer:
             numbers = re.findall(r"np\.int32\((\d+)\)", str(member_str))
             return [int(num) for num in numbers]
         else:
-            return ast.literal_eval(str(member_str))
+            try:
+                return ast.literal_eval(str(member_str))
+            except:
+                return []
 
     def get_distinct_colors(self, n_colors: int) -> List[str]:
         """Generate distinct colors for clusters"""
@@ -140,24 +144,34 @@ class ClusteringExplorer:
 
     def assign_colors_to_clusters(self) -> Dict[Tuple[int, int], str]:
         """Assign colors to all clusters across all levels"""
-        if f"level_{self.max_level}" not in self.data:
-            return {}
-
         color_assignments = {}
-        distinct_colors = self.get_distinct_colors(20)
 
-        top_level_data = self.data[
-            f"level_{self.max_level}"
-        ]  # start with top level clusters
+        # Start with the highest available level
+        top_level_key = f"level_{self.max_level}"
+        if top_level_key not in self.data:
+            # If no higher levels, just assign colors to level_0
+            level_0_data = self.data.get("level_0")
+            if level_0_data is not None:
+                distinct_colors = self.get_distinct_colors(len(level_0_data))
+                for i, (_, cluster_row) in enumerate(level_0_data.iterrows()):
+                    cluster_id = cluster_row["cluster_id"]
+                    color_assignments[(0, cluster_id)] = distinct_colors[
+                        i % len(distinct_colors)
+                    ]
+            return color_assignments
+
+        # Multi-level color assignment (existing logic)
+        distinct_colors = self.get_distinct_colors(20)
+        top_level_data = self.data[top_level_key]
 
         for i, (_, cluster_row) in enumerate(top_level_data.iterrows()):
-            cluster_id = str(cluster_row["cluster_id"])
+            cluster_id = cluster_row["cluster_id"]
             base_color = distinct_colors[i % len(distinct_colors)]
             color_assignments[(self.max_level, cluster_id)] = base_color
 
             self._assign_child_colors(
                 self.max_level, cluster_id, base_color, color_assignments
-            )  # Recursively assign colors to child clusters
+            )
 
         return color_assignments
 
@@ -168,7 +182,7 @@ class ClusteringExplorer:
         if level == 0:
             return
 
-        current_data = self.data.get(f"level_{level}")  # get current cluster data
+        current_data = self.data.get(f"level_{level}")
         if current_data is None:
             return
 
@@ -278,8 +292,9 @@ def display_cluster_table(
             with col2:
                 st.markdown(f"**{cluster_row['name']}**")
 
+                # always uses category, not partition
                 partition_col = None
-                for col in ["category", "partition"]:  # shows partition if it exists
+                for col in ["category", "partition"]:
                     if col in cluster_row.index and pd.notna(cluster_row[col]):
                         partition_col = col
                         break
@@ -505,7 +520,7 @@ def build_hierarchy_display(explorer: ClusteringExplorer) -> str:
     """Build a nice hierarchy display string"""
     config_hierarchy = explorer.config["hierarchy"]
 
-    # check what levels actually exist
+    # Check what levels actually exist
     actual_levels = []
     for i, expected_count in enumerate(config_hierarchy):
         level_data = explorer.data.get(f"level_{i}")
@@ -633,22 +648,6 @@ def display_partition_overview(explorer: ClusteringExplorer):
                     st.rerun()
 
                 st.markdown("---")
-    """Build a nice hierarchy display string"""
-    config_hierarchy = explorer.config["hierarchy"]
-
-    # Check what levels actually exist in the data
-    actual_levels = []
-    for i, expected_count in enumerate(config_hierarchy):
-        level_data = explorer.data.get(f"level_{i}")
-        if level_data is not None:
-            actual_levels.append(len(level_data))
-        else:
-            break
-
-    if len(actual_levels) == 1:
-        return f"{actual_levels[0]} clusters (single level)"
-    else:
-        return " → ".join(map(str, actual_levels)) + " clusters"
 
 
 def display_partition_clusters(explorer: ClusteringExplorer, partition_name: str):
@@ -714,7 +713,7 @@ def main():
             total_items = level_0_data["size"].sum()
             st.metric("Total Items", f"{total_items:,}")
 
-            # Show partitions if available
+            # Show partitions if available - fixed naming
             partitions = explorer.config.get("partitions")
             if partitions and level_0_data is not None:
                 st.divider()
