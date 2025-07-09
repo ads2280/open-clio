@@ -1,8 +1,8 @@
 from open_clio import generate_clusters
 
 TEST_CONFIG = {
-    "dataset_name": "ds-granular-pseudoscience-68",
-    "hierarchy": [5],
+    "dataset_name": "ds-timely-graduate-33",
+    "hierarchy": [12, 6],
     "summary_prompt": "Your job is to analyze this conversation and extract the key details about what the user is asking the AI assistant to do.\nFocus on capturing the main task, request, or purpose of the conversation in a clear, concise way.\n\nProvide a structured summary in this format:\n'[ACTION/TASK] with [SPECIFIC_TOPIC/SUBJECT] for [CONTEXT/PURPOSE]'\n\nExamples:\n- 'help with writing Python code for data analysis project'\n- 'explain machine learning concepts for academic research'\n- 'create marketing content for social media campaign'\n- 'debug software issues for web application development'\n- 'provide advice on career planning for recent graduate'\n- 'analyze financial data for investment decision making'\n- 'generate creative content for storytelling project'\n- 'answer questions about historical events for educational purposes'\n\nGuidelines:\n- Focus on what the user is asking the AI to do or help with\n- Be specific about the subject matter or domain when clear\n- Leave out redundant words like 'User requested' or 'I understand'\n- Include context about the purpose, use case, or technical details when relevant to the domain\n- Capture the core intent of the conversation\n- Don't include any personally identifiable information (PII) like names, locations, phone numbers, email addresses\n- Don't include any proper nouns\n- Be clear, descriptive and specific\n- Keep it concise - aim for one clear sentence",
     "sample": None,
     "partitions": {
@@ -15,7 +15,25 @@ TEST_CONFIG = {
     },
 }
 
+MINIMAL_CONFIG = {
+    "dataset_name": "ds-granular-pseudoscience-68",
+    "hierarchy": [5],
+    "summary_prompt": "Your job is to analyze this conversation and extract the key details about what the user is asking the AI assistant to do.\nFocus on capturing the main task, request, or purpose of the conversation in a clear, concise way.\n\nProvide a structured summary in this format:\n'[ACTION/TASK] with [SPECIFIC_TOPIC/SUBJECT] for [CONTEXT/PURPOSE]'\n\nExamples:\n- 'help with writing Python code for data analysis project'\n- 'explain machine learning concepts for academic research'\n- 'create marketing content for social media campaign'\n- 'debug software issues for web application development'\n- 'provide advice on career planning for recent graduate'\n- 'analyze financial data for investment decision making'\n- 'generate creative content for storytelling project'\n- 'answer questions about historical events for educational purposes'\n\nGuidelines:\n- Focus on what the user is asking the AI to do or help with\n- Be specific about the subject matter or domain when clear\n- Leave out redundant words like 'User requested' or 'I understand'\n- Include context about the purpose, use case, or technical details when relevant to the domain\n- Capture the core intent of the conversation\n- Don't include any personally identifiable information (PII) like names, locations, phone numbers, email addresses\n- Don't include any proper nouns\n- Be clear, descriptive and specific\n- Keep it concise - aim for one clear sentence",
+    "sample": None,
+    "partitions": {
+        "About LangChain": "Questions about products like LangChain OSS, LangGraph, LangSmith, LangMem, etc.",
+        "Other": "Spam, Unrelated issues",
+    }
+}
 
 def test_generate_clusters() -> None:
     clusters = generate_clusters(**TEST_CONFIG)
-    assert clusters == ...
+    assert clusters == ... #what clusters should look like
+
+def test_config():
+    from open_clio import validate_hierarchy
+    assert validate_hierarchy([10], 100)
+    assert validate_hierarchy([20, 10, 5], 100)
+    assert validate_hierarchy([1], 3)
+
+    

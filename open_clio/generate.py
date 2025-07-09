@@ -900,12 +900,6 @@ def save_results(all_updates, combined_hierarchy):
     # 1. combined.csv: save combined examples with full hierarchical clustering info
     print(f"\nSaving results to {save_path}...")
     examples_data = []
-    print(f"\nDEBUG: Sample clustering data from updates:")
-    for i, update in enumerate(all_updates[:3]):  # Show first 3 updates
-        clustering = update["outputs"]["clustering"]
-        print(f"  Update {i}: {len(clustering)} clustering levels")
-        for level_key, level_data in clustering.items():
-            print(f"    {level_key}: {level_data}")
 
     for update in all_updates:
         clustering = update["outputs"]["clustering"]
@@ -976,30 +970,12 @@ def save_results(all_updates, combined_hierarchy):
     # 2. csv by level: Save ALL clusters from ALL levels across ALL categories
     all_clusters = {"level_0": [], "level_1": [], "level_2": []}
 
-    print(f"\nDEBUG: combined_hierarchy structure:")
-    for category, cat_hierarchy in combined_hierarchy["categories"].items():
-        print(f"  Category: {category}")
-        print(f"    Max level: {cat_hierarchy.get('max_level', 0)}")
-        for level_key, level_data in cat_hierarchy.items():
-            if level_key != "max_level":
-                print(f"    {level_key}: {len(level_data)} clusters")
-                for cluster_id, cluster_data in list(level_data.items())[
-                    :3
-                ]:  # Show first 3
-                    print(f"      {cluster_id}: {cluster_data.get('name', 'NO NAME')}")
-
-    # ADD DEBUG: Print the actual data being processed
-    print(f"\nDEBUG: Processing clusters for CSV files:")
     total_clusters = 0
     for category, cat_hierarchy in combined_hierarchy["categories"].items():
         for level in range(cat_hierarchy["max_level"] + 1):
             level_key = f"level_{level}"
             if level_key in cat_hierarchy:
-                print(f"  DEBUG Processing {level_key} for category '{category}':")
                 for cluster_id, cluster_data in cat_hierarchy[level_key].items():
-                    print(
-                        f"   DEBUG  Cluster {cluster_id}: {cluster_data.get('name', 'NO NAME')}"
-                    )
                     total_clusters += 1
 
                     row = {
@@ -1018,8 +994,6 @@ def save_results(all_updates, combined_hierarchy):
 
                     all_clusters[level_key].append(row)
 
-    print(f"DEBUG: Total clusters processed: {total_clusters}")
-
     # Save each level
     for level_name, cluster_list in all_clusters.items():
         if not cluster_list:
@@ -1030,11 +1004,6 @@ def save_results(all_updates, combined_hierarchy):
         output_path = f"{save_path}/{level_name}_clusters.csv"  # debug
         df.to_csv(output_path, index=False)  # debug
         print(f"Saved {len(cluster_list)} clusters to {level_name}_clusters.csv")
-
-        # DEBUG: Show what was actually written
-        print(f"DEBUG: Content of {level_name}_clusters.csv:")
-        with open(output_path, "r") as f:
-            print(f.read())
 
     print(f"\nSee {save_path} for csv files.")
     print("\nthe end")
