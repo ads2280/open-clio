@@ -13,9 +13,11 @@ dependencies = [
     "langchain-anthropic>=0.3.17",
     "scikit-learn>=1.6.1",
     "langchain>=0.3.26",
+    "pytest>=8.4.1",
 ]
 [dependency-groups]
 dev = [
     "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
     "ruff>=0.12.0",
 ]

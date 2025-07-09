@@ -5,7 +5,7 @@ Centralized prompt configs for conversation analysis
 SUMMARIZE_INSTR = """
 {summary_prompt}
 
-Provide your summary in <answer> tags and select the most appropriate category for this conversation from the provided list:
+Provide your summary in <answer> tags and select the most appropriate partition for this conversation from the provided list:
 {partitions}
 """
 
@@ -98,9 +98,9 @@ or domains that distinguish this group from others.
 """
 
 PROPOSE_CLUSTERS_INSTR = """
-You are tasked with creating higher-level categories based on a
+You are tasked with creating higher-level partitions based on a
 given list of clusters and their descriptions. Your goal is to come up
-with broader categories that could encompass one or more of the provided
+with broader partitions that could encompass one or more of the provided
 clusters, while maintaining specificity and actionability.
 
 First, review the list of clusters and their descriptions:
@@ -108,14 +108,14 @@ First, review the list of clusters and their descriptions:
 {cluster_list_text}
 </cluster_list>
 
-Your task is to create roughly {clusters_per_neighborhood} higher-level categories
+Your task is to create roughly {clusters_per_neighborhood} higher-level partitions
 that could potentially include one or more of the provided clusters. 
 
-These categories should align with the LangChain support structure and be actionable for product teams:
+These partitions should align with the LangChain support structure and be actionable for product teams:
 
-These categories should be actionable and align with natural groupings:
+These partitions should be actionable and align with natural groupings:
 
-**Main Category Types:**
+**Main partition Types:**
 1. **Topic/Domain Areas** - Programming, Writing, Education, Business, Science, etc.
 2. **Task Types** - Creating, Debugging, Explaining, Analyzing, Planning, etc.
 3. **Use Contexts** - Academic, Professional, Personal, Creative, Technical
@@ -126,10 +126,10 @@ You can generate more or less than {clusters_per_neighborhood} names if appropri
 You should output at least {min_cpn} and at most {max_cpn}
 names, with {clusters_per_neighborhood} as a target.
 
-Guidelines for creating higher-level categories:
+Guidelines for creating higher-level partitions:
 1. Analyze the topics, tasks, or contexts common to multiple clusters
 2. Create names that clearly indicate what type of expertise or approach is needed
-3. Ensure categories reflect natural groupings that would make sense organizationally
+3. Ensure partitions reflect natural groupings that would make sense organizationally
 4. Use clear, descriptive language that immediately conveys the scope
 5. Prioritize actionable distinctions over generic groupings
 
@@ -142,7 +142,7 @@ potential overarching themes.
 
 <scratchpad>
 [Use this space to analyze the clusters and identify patterns. 
-Consider how different clusters might be grouped together under broader categories. No longer than a paragraph or two.]
+Consider how different clusters might be grouped together under broader partitions. No longer than a paragraph or two.]
 </scratchpad>
 
 Now, provide your list of roughly {clusters_per_neighborhood} higher-level cluster names. Present your answer in 
@@ -159,8 +159,8 @@ Focus on creating meaningful, distinct, and actionable higher-level cluster name
 """
 
 DEDUPLICATE_CLUSTERS_INSTR = """
-You are tasked with deduplicating a list of cluster names into distinct categories. 
-Your goal is to create approximately {clusters_per_neighborhood} distinct categories that best represent the conversation patterns and are actionable.
+You are tasked with deduplicating a list of cluster names into distinct partitions. 
+Your goal is to create approximately {clusters_per_neighborhood} distinct partitions that best represent the conversation patterns and are actionable.
 
 Here are the inputs:
 <cluster_names>
@@ -233,7 +233,7 @@ Remember, your goal is to create approximately {target_clusters} actionable clus
 """
 
 ASSIGN_CLUSTER_INSTR = """
-You are tasked with categorizing a specific cluster into one of the provided higher-level categories. 
+You are tasked with categorizing a specific cluster into one of the provided higher-level partitions. 
 Focus on matching the type of work and expertise needed. Your goal is to determine which higher-level cluster best
 fits the given specific cluster based on its name and description.
 
@@ -247,7 +247,7 @@ To categorize the cluster:
 2. **Determine the task type** (Creating, Debugging, Explaining, Analyzing, etc.)
 3. **Note the context** (Academic, Professional, Personal, Creative, etc.)
 4. **Consider the complexity level** (Basic, Intermediate, Advanced)
-5. **Match to the category that involves the same type of work and expertise**
+5. **Match to the partition that involves the same type of work and expertise**
 
 Be precise with categorization. For example:
 - Python web application debugging issues → Programming debugging and troubleshooting assistance
@@ -258,7 +258,7 @@ Be precise with categorization. For example:
 First, use the <scratchpad> tags to think through your reasoning:
 
 <scratchpad>
-Think step by step: What domain is this about? What type of task? What level of expertise is needed? Which higher-level category best matches these requirements?
+Think step by step: What domain is this about? What type of task? What level of expertise is needed? Which higher-level partition best matches these requirements?
 </scratchpad>
 
 Then, provide your answer in the following format:
@@ -316,20 +316,20 @@ Do not elaborate beyond what you say in the tags. Ensure your summary and name h
 # Default partitions for evaluations
 
 # Evals
-CATEGORY_RELEVANCE = """
-You are evaluating whether conversation fits its assigned category.
+partition_RELEVANCE = """
+You are evaluating whether conversation fits its assigned partition.
 CONVERSATION SUMMARY: {{summary}}
-ASSIGNED CATEGORY: {{category}}
+ASSIGNED partition: {{category}}
 PARTITIONS:
 {partitions}
-TASK: Does this conversation summary fit well within the assigned category?
+TASK: Does this conversation summary fit well within the assigned partition?
 Consider:
-- Does the conversation topic align with the category's scope?
-- Would a support team for this category be the right team to handle this request?
+- Does the conversation topic align with the partition's scope?
+- Would a support team for this partition be the right team to handle this request?
 - Is this conversation clearly about the assigned product area?
 Rate this as either:
-- CORRECT (1): The conversation clearly fits the assigned category
-- INCORRECT (0): The conversation does not fit the assigned category
+- CORRECT (1): The conversation clearly fits the assigned partition
+- INCORRECT (0): The conversation does not fit the assigned partition
 Provide your rating as either 1 or 0.
 """
 
@@ -413,7 +413,7 @@ For example: FINAL SCORE: 0.73
 """
 {
   "summary": "debugging help with LangSmith SDK tracing for Python implementation",
-  "category": "LangSmith product",
+  "partition": "LangSmith product",
   "clustering": {
     "level_0": {
       "id": 5,
