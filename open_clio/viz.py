@@ -1,3 +1,4 @@
+# evals - take csvs, make an experiment in langsmith, and then runs
 import ast
 import json
 import os
@@ -299,7 +300,7 @@ def display_cluster_table(df: pd.DataFrame, level: int, color_assignments: Dict,
         with col1:
             st.markdown(f"**{cluster_row['name']}**")
             if 'description' in cluster_row and pd.notna(cluster_row['description']):
-                st.markdown(f"{cluster_row['description']}")
+                st.markdown(f"_{cluster_row['description'][:200]}{'...' if len(str(cluster_row['description'])) > 200 else ''}_")
         
         with col2:
             st.metric("Size", cluster_row.get('size', 0))
@@ -358,7 +359,7 @@ def display_examples(explorer: ClusteringExplorer, cluster_id):
     st.markdown(f"### Examples ({len(cluster_examples)} total)")
     
     for _, example in cluster_examples.iterrows():
-        with st.expander(f"Example: {example['summary']}..."):
+        with st.expander(f"Example: {example['summary'][:100]}..."):
             st.markdown(f"**Summary:** {example['summary']}")
             if 'full_example' in example and pd.notna(example['full_example']):
                 st.markdown("**Full Example:**")
