@@ -12,7 +12,7 @@ st.set_page_config(
     page_title="OpenCLIO Clustering Explorer", layout="wide", initial_sidebar_state="expanded"
 )
 class ClusteringExplorer:
-    def __init__(self, config_path: str = ".data/config.json"):
+    def __init__(self, config_path: str = ".data/config_2.json"):
         self.config = self.load_config(config_path)
         self.data = {}
         self.save_path = ".data/clustering_results"
@@ -273,19 +273,20 @@ def display_parent_stack():
     if st.session_state.navigation_path:
         breadcrumbs = []
         for i, step in enumerate(st.session_state.navigation_path):
-            if st.button(f"Level {step['level']}: {step['name']}", key=f"breadcrumb_{i}"):
+            #if st.button(f"Level {step['level']}: {step['name']}", key=f"breadcrumb_{i}"):
                 # Go back to this level
-                st.session_state.navigation_path = st.session_state.navigation_path[:i+1]
-                st.session_state.view_mode = "clusters"
-                st.rerun()
-            breadcrumbs.append(f"Level {step['level']}")
+            #    st.session_state.navigation_path = st.session_state.navigation_path[:i+1]
+            #    st.session_state.view_mode = "clusters"
+            #    st.rerun()
+            breadcrumbs.append(f"Level {step['level']}: {step['name']}") #added name, can remove
         
-        st.markdown(f"**Path:** {' → '.join(breadcrumbs)}")
-        
-        if st.button("Home"):
-            st.session_state.navigation_path = []
-            st.session_state.view_mode = "clusters"
-            st.rerun()
+        st.markdown(f"**Path:**\n" + "\n→ ".join(breadcrumbs))
+
+        #if st.button("Home"):
+        #    st.session_state.navigation_path = []
+        #    st.session_state.view_mode = "clusters"
+        #    st.rerun()
+        #redundant now that back button added
 
 
 def display_cluster_table(df: pd.DataFrame, level: int, color_assignments: Dict, explorer: ClusteringExplorer):
@@ -300,7 +301,7 @@ def display_cluster_table(df: pd.DataFrame, level: int, color_assignments: Dict,
         with col1:
             st.markdown(f"**{cluster_row['name']}**")
             if 'description' in cluster_row and pd.notna(cluster_row['description']):
-                st.markdown(f"_{cluster_row['description'][:200]}{'...' if len(str(cluster_row['description'])) > 200 else ''}_")
+                st.markdown(f"{cluster_row['description']}")
         
         with col2:
             st.metric("Size", cluster_row.get('size', 0))
@@ -325,9 +326,15 @@ def display_cluster_table(df: pd.DataFrame, level: int, color_assignments: Dict,
                             "name": cluster_row['name']
                         })
                         st.session_state.view_mode = "examples"
+                        st.session_state.selected_cluster_id = cluster_id
                         st.rerun()
             else:
                 if st.button(f"Examples →", key=f"examples_{level}_{cluster_id}"):
+                    st.session_state.navigation_path.append({
+                        "level": level,
+                        "cluster_id": cluster_id,
+                        "name": cluster_row['name']
+                    })
                     st.session_state.view_mode = "examples"
                     st.session_state.selected_cluster_id = cluster_id
                     st.rerun()
@@ -345,9 +352,8 @@ def display_examples(explorer: ClusteringExplorer, cluster_id):
     # Add back button at the top
     if st.button("← Back"):
         if st.session_state.navigation_path:
-            st.session_state.view_mode = "clusters"
-        else:
-            st.session_state.view_mode = "clusters"
+            st.session_state.navigation_path.pop()
+        st.session_state.view_mode = "clusters"
         st.rerun()
     
     # Filter examples for this cluster at any level
@@ -359,15 +365,40 @@ def display_examples(explorer: ClusteringExplorer, cluster_id):
     st.markdown(f"### Examples ({len(cluster_examples)} total)")
     
     for _, example in cluster_examples.iterrows():
-        with st.expander(f"Example: {example['summary'][:100]}..."):
+        with st.expander(f"Example: {example['summary']}"):
             st.markdown(f"**Summary:** {example['summary']}")
             if 'full_example' in example and pd.notna(example['full_example']):
                 st.markdown("**Full Example:**")
                 st.text(example['full_example'])
 
+def show_overview_box(explorer: ClusteringExplorer):
+    """Show dataset overview, hierarchy levels, and level previews in a box at the top of the main content."""
+    with st.container():
+        st.markdown("### Dataset Overview")
+        level_0_data = explorer.data.get("level_0")
+        if level_0_data is not None:
+            total_items = level_0_data["size"].sum()
+            st.markdown(f"**Total Items:** {total_items:,}")
+        st.divider()
+        st.markdown("### Hierarchy Levels")
+        for level in explorer.available_levels:
+            level_data = explorer.data.get(f"level_{level}")
+            if level_data is not None:
+                count = len(level_data)
+                if level == 0:
+                    label = "(Base)"
+                elif level == explorer.max_level:
+                    label = "(Top)"
+                else:
+                    label = ""
+                st.markdown(f"**Level {level} {label}:** {count} clusters")
+        st.divider()
+        st.markdown("### Level Previews")
+        show_cluster_previews_in_sidebar(explorer)
+
 
 def main():
-    st.title("Clustering Explorer")
+    st.markdown("# Explore Clio Clusters")
     
     # Initialize session state
     if "view_mode" not in st.session_state:
@@ -380,6 +411,9 @@ def main():
     try:
         explorer = ClusteringExplorer()
         explorer.data = explorer.load_data()
+        explorer.available_levels = explorer.detect_available_levels()
+        explorer.max_level = max(explorer.available_levels)
+        explorer.level_names = [f"level_{i}" for i in explorer.available_levels]
         
         if not explorer.data:
             st.error("No data loaded. Please check your configuration and data files.")
@@ -394,38 +428,13 @@ def main():
         st.error("Please check your configuration and data files.")
         return
 
+    # Show the overview box at the top of the main content
+    # show_overview_box(explorer)
+
     # Show dataset info with actual hierarchy display
     hierarchy_display = build_hierarchy_display(explorer)
     st.markdown(f"**Dataset:** {explorer.config['dataset_name']}")
     st.markdown(f"**Hierarchy:** {hierarchy_display}")
-
-    # Sidebar with enhanced dataset summary
-    with st.sidebar:
-        st.header("Dataset Overview")
-
-        # Calculate total items
-        level_0_data = explorer.data.get("level_0")
-        if level_0_data is not None:
-            total_items = level_0_data["size"].sum()
-            st.metric("Total Items", f"{total_items:,}")
-
-            st.divider()
-            # Show hierarchy breakdown with labels
-            st.markdown("### Hierarchy Levels")
-            for level in explorer.available_levels:
-                level_data = explorer.data.get(f"level_{level}")
-                if level_data is not None:
-                    count = len(level_data)
-                    if level == 0:
-                        label = "(Base)"
-                    elif level == explorer.max_level:
-                        label = "(Top)"
-                    else:
-                        label = ""
-                    st.markdown(f"**Level {level} {label}:** {count} clusters")
-
-        # Show cluster previews for each level
-        show_cluster_previews_in_sidebar(explorer)
 
     # Show navigation breadcrumb
     display_parent_stack()
@@ -467,6 +476,10 @@ def main():
                 # Fallback to level 0 if no higher levels
                 level_0_data = explorer.data.get("level_0")
                 if level_0_data is not None:
+                    if explorer.max_level > 0:
+                        if st.button(f"← Back to Level {explorer.max_level} Clusters"):
+                            st.session_state.view_mode = "clusters"
+                            st.rerun()
                     display_cluster_table(level_0_data, 0, st.session_state.color_assignments, explorer)
 
 

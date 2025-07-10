@@ -332,7 +332,7 @@ cluster names that could encompass multiple sub-clusters within the LangChain ec
         except Exception as e:
             print(f"Error proposing clusters for neighborhood {neighborhood_id}: {e}")
             time.sleep(1.0)  # Sleep even on error to respect rate limits
-
+    print(f"Proposed clusters: {proposed}")
     return proposed
 
 
@@ -516,7 +516,8 @@ def rename_higher_level_clusters(current_clusters, assignments, level, partition
             cluster_groups[assigned_hl] = []
         cluster_groups[assigned_hl].append(cluster_id)
 
-    for hl_id, (hl_name, member_cluster_ids) in cluster_groups.items():
+    for hl_name, member_cluster_ids in cluster_groups.items():
+        hl_id = uuid.uuid4()
         # building list of member clusters for prompt
         cluster_list = []  # changed from members
         total_size = 0
@@ -848,17 +849,29 @@ def cluster_partition_examples(
 
             # Track example assignments for this level
             example_assignments[f"level_{level}"] = {}
-            for example_id, base_cluster_id in example_assignments["level_0"].items():
-                # Find which higher-level cluster this base cluster was assigned to
-                if base_cluster_id in assignments:
-                    higher_level_cluster_name = assignments[base_cluster_id]
-                    # Find the cluster ID for this higher-level cluster name
-                    for hl_cluster_id, hl_cluster_info in new_lvl_clusters.items():
-                        if hl_cluster_info["name"] == higher_level_cluster_name:
-                            example_assignments[f"level_{level}"][example_id] = (
-                                hl_cluster_id
-                            )
-                            break
+            if level == 1:
+                # For level 1, map from level_0 clusters to level_1 clusters
+                for example_id, base_cluster_id in example_assignments["level_0"].items():
+                    if base_cluster_id in assignments:
+                        # Find the cluster ID for this higher-level cluster name
+                        # assignments maps cluster_id to proposed cluster name
+                        # We need to find which new cluster this base cluster was assigned to
+                        for hl_cluster_id, hl_cluster_info in new_lvl_clusters.items():
+                            if base_cluster_id in hl_cluster_info.get("member_clusters", []):
+                                example_assignments[f"level_{level}"][example_id] = hl_cluster_id
+                                break
+            else:
+                # For level 2+, map from previous level clusters to current level clusters
+                previous_level = f"level_{level - 1}"
+                for example_id, prev_cluster_id in example_assignments[previous_level].items():
+                    if prev_cluster_id in assignments:
+                        # Find the cluster ID for this higher-level cluster name
+                        # assignments maps cluster_id to proposed cluster name
+                        # We need to find which new cluster this previous cluster was assigned to
+                        for hl_cluster_id, hl_cluster_info in new_lvl_clusters.items():
+                            if prev_cluster_id in hl_cluster_info.get("member_clusters", []):
+                                example_assignments[f"level_{level}"][example_id] = hl_cluster_id
+                                break
 
             partition_hierarchy[f"level_{level}"] = new_lvl_clusters
             partition_hierarchy["max_level"] = level
@@ -925,7 +938,7 @@ def cluster_partition_examples(
 
 def save_results(all_updates, combined_hierarchy):
     # print results summary
-    save_path = ".data/clustering_results"
+    save_path = f".data/clustering_results/"
     print("\nOverview of clustering results:")
 
     for partition, hierarchy in combined_hierarchy["partitions"].items():
@@ -947,6 +960,7 @@ def save_results(all_updates, combined_hierarchy):
 
     for update in all_updates:
         clustering = update["outputs"]["clustering"]
+        # print(f"clustering: {clustering}")
 
         # Get base cluster info
         base_cluster_id = clustering.get("level_0", {}).get("id", None)
@@ -965,9 +979,15 @@ def save_results(all_updates, combined_hierarchy):
                 ].get("name", "")
 
         # Get top level info (highest level reached)
-        top_level = max(clustering.keys()) if clustering else "level_0"
-        top_cluster_id = clustering.get(top_level, {}).get("id", None)
-        top_cluster_name = clustering.get(top_level, {}).get("name", "")
+        if "level_1" in clustering:
+            top_cluster_id = clustering["level_1"]["id"]
+            top_cluster_name = clustering["level_1"]["name"]
+        elif "level_0" in clustering:
+            top_cluster_id = clustering["level_0"].get("id", None)
+            top_cluster_name = clustering["level_0"].get("name", "")
+        else:
+            top_cluster_id = None
+            top_cluster_name = ""
 
         # Create full example text (combine inputs if available)
         full_example = ""
@@ -1003,10 +1023,11 @@ def save_results(all_updates, combined_hierarchy):
                 "top_cluster_name": top_cluster_name,
             }
         )
+        # print(f"\nrow_data: {row_data}")
 
         examples_data.append(row_data)  # examples_data has row_data for every example
-
     examples_df = pd.DataFrame(examples_data)
+    
     examples_df.to_csv(f"{save_path}/combined.csv", index=False)
     # looks like: example_id,full_example,summary,partition,base_cluster_id,base_cluster_name, [intermediates], top_cluster_id,top_cluster_name
     print(f"Saved {len(examples_data)} examples to combined.csv")
@@ -1034,7 +1055,11 @@ def save_results(all_updates, combined_hierarchy):
                     if "total_size" in cluster_data:
                         row["total_size"] = cluster_data["total_size"]
                     if "member_clusters" in cluster_data:
-                        row["member_clusters"] = str(cluster_data["member_clusters"])
+                        member_uuids = cluster_data["member_clusters"]
+                        if isinstance(member_uuids, list):
+                            row["member_clusters"] = str([str(uuid) for uuid in member_uuids])
+                        else:
+                            row["member_clusters"] = str(member_uuids)
 
                     all_clusters[level_key].append(row)
 
@@ -1056,7 +1081,7 @@ def save_results(all_updates, combined_hierarchy):
 def load_config(config_path: str | None = None):
     """Load configuration from JSON file"""
     if config_path is None:
-        config_path = "./.data/config.json" #TODO change
+        config_path = "./.data/config_2.json" #TODO change
     print(f"Loading config from: {config_path}")
     print(f"Current working directory: {os.getcwd()}")
     with open(config_path, "r") as f:
