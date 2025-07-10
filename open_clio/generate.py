@@ -9,6 +9,7 @@ from collections import defaultdict
 from typing import Sequence
 import warnings
 import uuid
+from tqdm import tqdm
 
 from open_clio.internal.utils import gated_coro
 from open_clio.internal import schemas
@@ -122,12 +123,18 @@ async def summarize_all(
 
     semaphore = asyncio.Semaphore(max_concurrency)
 
-    # TODO: add progress bar
     tasks = [
         gated_coro(summarize_example(example, partitions, summary_prompt), semaphore)
         for example in examples
     ]
-    summaries = await asyncio.gather(*tasks)  # each coroutine as separate task in list
+    summaries = []
+    with tqdm(total=len(tasks), desc="Generating summaries") as pbar:
+        for coro in asyncio.as_completed(tasks):
+            result = await coro
+            summaries.append(result)
+            pbar.update(1)
+
+    # summaries = await asyncio.gather(*tasks)
     num_successful = sum(s is not None for s in summaries)
     total_ex = len(examples)
     print(
@@ -152,8 +159,8 @@ def perform_base_clustering(
         tuple: (cluster_info, cluster_labels)
     """
     # generate embeddings
+    print(f"Generating base clusters...")
     embeddings = np.array(embedder.embed_documents([s["summary"] for s in summaries]))
-    # this assumes you'll never have less partitions than k, can add a min(k, len(summaries)) check l8er
 
     # apply kmeans clustering
     kmeans = KMeans(n_clusters=partition_k, random_state=42, n_init=10, max_iter=300)
@@ -161,8 +168,6 @@ def perform_base_clustering(
     if len(np.unique(clusters)) >= 2:
         silhouette = silhouette_score(embeddings, clusters)
         print(f"silhoutte score: {silhouette}")
-
-    # print(f"unique clusters: {np.unique(clusters)}")
 
     # generate descriptions for all clusters
     return generate_cluster_descriptions(clusters, summaries, embeddings, partition)
@@ -400,7 +405,7 @@ I understand. I'll deduplicate the cluster names into approximately {target_clus
         deduplicated = proposed[:target_clusters]
 
     print(f"Final deduplicated clusters: {deduplicated}")
-    time.sleep(2.0)  
+    time.sleep(2.0)
     return deduplicated
 
 
@@ -511,7 +516,7 @@ def rename_higher_level_clusters(current_clusters, assignments, level, partition
             cluster_groups[assigned_hl] = []
         cluster_groups[assigned_hl].append(cluster_id)
 
-    for hl_id, (hl_name, member_cluster_ids) in enumerate(cluster_groups.items()):
+    for hl_id, (hl_name, member_cluster_ids) in cluster_groups.items():
         # building list of member clusters for prompt
         cluster_list = []  # changed from members
         total_size = 0
@@ -575,7 +580,7 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
         print(
             f"Level {level} Cluster {hl_id}: {name} ({len(member_cluster_ids)} sub-clusters, {total_size} total items)"
         )
-        time.sleep(1.0)  # Sleep after each higher-level cluster renaming
+        time.sleep(1.0)
 
     return new_lvl_clusters
 
@@ -792,13 +797,6 @@ def cluster_partition_examples(
     print(
         f"Planned hierarchy sizes for partition '{partition}': {n_base} + {scaled_level_sizes}"
     )
-
-    print(f"Debug: levels = {levels}")
-    print(f"Debug: scaled_level_sizes = {scaled_level_sizes}")
-    print(f"Debug: len(current_clusters) = {len(current_clusters)}")
-    print(
-        f"Debug: current_clusters keys = {list(current_clusters.keys())[:3]}..."
-    )  # first 3 keys# first 3 keys
 
     # Build clusters for each level in the hierarchy
     for level in range(1, levels):
@@ -1058,7 +1056,7 @@ def save_results(all_updates, combined_hierarchy):
 def load_config(config_path: str | None = None):
     """Load configuration from JSON file"""
     if config_path is None:
-        config_path = "config.json"
+        config_path = "./.data/config.json" #TODO change
     print(f"Loading config from: {config_path}")
     print(f"Current working directory: {os.getcwd()}")
     with open(config_path, "r") as f:
@@ -1133,7 +1131,9 @@ async def generate_clusters(
 
         # no skipping partitions that are problematic
 
-        print(f"\n\nStarting to cluster examples that belong to partition '{partition}'")
+        print(
+            f"\n\nStarting to cluster examples that belong to partition '{partition}'"
+        )
 
         try:
             partition_updates, partition_hierarchy = cluster_partition_examples(
@@ -1157,7 +1157,6 @@ async def generate_clusters(
             time.sleep(3.0)  # Sleep between partitions
 
     print("\nAll partitions have been processed, clustering complete!")
-
     # Save results to csvs
     save_results(all_updates, combined_hierarchy)
 
