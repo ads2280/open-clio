@@ -9,14 +9,18 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="OpenCLIO Clustering Explorer", layout="wide", initial_sidebar_state="expanded"
+    page_title="OpenCLIO Clustering Explorer",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
+
+
 class ClusteringExplorer:
     def __init__(self, config_path: str = ".data/config_2.json"):
         self.config = self.load_config(config_path)
         self.data = {}
         self.save_path = ".data/clustering_results"
-        
+
         # Dynamically detect available levels instead of using config
         self.available_levels = []
         self.max_level = 0
@@ -31,7 +35,7 @@ class ClusteringExplorer:
         """Scan the results directory to detect which level files actually exist"""
         available_levels = []
         level_num = 0
-        
+
         while True:
             level_path = os.path.join(self.save_path, f"level_{level_num}_clusters.csv")
             if os.path.exists(level_path):
@@ -39,7 +43,7 @@ class ClusteringExplorer:
                 level_num += 1
             else:
                 break
-                
+
         return available_levels
 
     @st.cache_data
@@ -53,7 +57,9 @@ class ClusteringExplorer:
         if os.path.exists(combined_path):
             try:
                 data["combined"] = pd.read_csv(combined_path)
-                st.success(f"Loaded combined dataset with {len(data['combined'])} examples")
+                st.success(
+                    f"Loaded combined dataset with {len(data['combined'])} examples"
+                )
             except Exception as e:
                 st.error(f"Error loading combined.csv: {e}")
                 st.stop()
@@ -64,14 +70,14 @@ class ClusteringExplorer:
 
         # Detect available levels dynamically
         _self.available_levels = _self.detect_available_levels()
-        
+
         if not _self.available_levels:
             st.error("No level_X_clusters.csv files found!")
             st.stop()
-            
+
         _self.max_level = max(_self.available_levels)
         _self.level_names = [f"level_{i}" for i in _self.available_levels]
-        
+
         # loading_messages.append(f", detected len({_self.available_levels}) levels")
 
         # Load only the available level data files
@@ -103,10 +109,26 @@ class ClusteringExplorer:
     def get_distinct_colors(self, n_colors: int) -> List[str]:
         """Generate distinct colors for clusters"""
         base_colors = [
-            "#DC2626", "#059669", "#2563EB", "#7C3AED", "#EA580C", "#0891B2",
-            "#BE185D", "#65A30D", "#F59E0B", "#EF4444", "#10B981", "#3B82F6",
-            "#8B5CF6", "#F97316", "#06B6D4", "#EC4899", "#84CC16", "#FCD34D",
-            "#F87171", "#34D399",
+            "#DC2626",
+            "#059669",
+            "#2563EB",
+            "#7C3AED",
+            "#EA580C",
+            "#0891B2",
+            "#BE185D",
+            "#65A30D",
+            "#F59E0B",
+            "#EF4444",
+            "#10B981",
+            "#3B82F6",
+            "#8B5CF6",
+            "#F97316",
+            "#06B6D4",
+            "#EC4899",
+            "#84CC16",
+            "#FCD34D",
+            "#F87171",
+            "#34D399",
         ]
 
         colors = []
@@ -114,7 +136,9 @@ class ClusteringExplorer:
             colors.append(base_colors[i % len(base_colors)])
         return colors
 
-    def create_color_variations(self, base_color: str, num_variations: int) -> List[str]:
+    def create_color_variations(
+        self, base_color: str, num_variations: int
+    ) -> List[str]:
         """Create lighter variations of a base color"""
         variations = [base_color]
 
@@ -150,7 +174,9 @@ class ClusteringExplorer:
                 distinct_colors = self.get_distinct_colors(len(level_0_data))
                 for i, (_, cluster_row) in enumerate(level_0_data.iterrows()):
                     cluster_id = cluster_row["cluster_id"]
-                    color_assignments[(0, cluster_id)] = distinct_colors[i % len(distinct_colors)]
+                    color_assignments[(0, cluster_id)] = distinct_colors[
+                        i % len(distinct_colors)
+                    ]
             return color_assignments
 
         # Multi-level color assignment
@@ -162,11 +188,15 @@ class ClusteringExplorer:
             base_color = distinct_colors[i % len(distinct_colors)]
             color_assignments[(self.max_level, cluster_id)] = base_color
 
-            self._assign_child_colors(self.max_level, cluster_id, base_color, color_assignments)
+            self._assign_child_colors(
+                self.max_level, cluster_id, base_color, color_assignments
+            )
 
         return color_assignments
 
-    def _assign_child_colors(self, level: int, cluster_id: int, base_color: str, color_assignments: Dict):
+    def _assign_child_colors(
+        self, level: int, cluster_id: int, base_color: str, color_assignments: Dict
+    ):
         """Recursively assign colors to child clusters"""
         if level == 0:
             return
@@ -184,16 +214,22 @@ class ClusteringExplorer:
             return
 
         current_cluster = current_cluster.iloc[0]
-        child_cluster_ids = self.parse_member_clusters(current_cluster.get("member_clusters", ""))
+        child_cluster_ids = self.parse_member_clusters(
+            current_cluster.get("member_clusters", "")
+        )
 
         if child_cluster_ids:
-            child_colors = self.create_color_variations(base_color, len(child_cluster_ids))
+            child_colors = self.create_color_variations(
+                base_color, len(child_cluster_ids)
+            )
 
             for child_index, child_id in enumerate(child_cluster_ids):
                 child_color = child_colors[child_index % len(child_colors)]
                 color_assignments[(level - 1, child_id)] = child_color
 
-                self._assign_child_colors(level - 1, child_id, child_color, color_assignments)
+                self._assign_child_colors(
+                    level - 1, child_id, child_color, color_assignments
+                )
 
     def get_child_clusters(self, level: int, cluster_id: int) -> pd.DataFrame:
         """Get a cluster's child clusters"""
@@ -213,7 +249,9 @@ class ClusteringExplorer:
             return pd.DataFrame()
 
         current_cluster = current_cluster.iloc[0]
-        child_cluster_ids = self.parse_member_clusters(current_cluster.get("member_clusters", ""))
+        child_cluster_ids = self.parse_member_clusters(
+            current_cluster.get("member_clusters", "")
+        )
 
         if not child_cluster_ids:
             return pd.DataFrame()
@@ -234,7 +272,7 @@ def build_hierarchy_display(explorer: ClusteringExplorer) -> str:
     """Build a hierarchy display string showing actual available levels"""
     if not explorer.available_levels:
         return "No levels available"
-    
+
     hierarchy_parts = []
     for level in explorer.available_levels:
         level_data = explorer.data.get(f"level_{level}")
@@ -246,7 +284,7 @@ def build_hierarchy_display(explorer: ClusteringExplorer) -> str:
                 hierarchy_parts.append(f"{count} top")
             else:
                 hierarchy_parts.append(f"{count}")
-        
+
     return " → ".join(hierarchy_parts) + " clusters"
 
 
@@ -254,13 +292,16 @@ def show_cluster_previews_in_sidebar(explorer: ClusteringExplorer):
     """Show cluster previews for each available level in sidebar"""
     st.divider()
     st.markdown("### Level Previews")
-    
+
     for level in reversed(explorer.available_levels):  # Show from top to bottom
         level_data = explorer.data.get(f"level_{level}")
         if level_data is not None:
-            with st.expander(f"Level {level} ({len(level_data)} clusters)", expanded=(level == explorer.max_level)):
+            with st.expander(
+                f"Level {level} ({len(level_data)} clusters)",
+                expanded=(level == explorer.max_level),
+            ):
                 # Show top 3 clusters by size
-                top_clusters = level_data.nlargest(3, 'size')
+                top_clusters = level_data.nlargest(3, "size")
                 for _, cluster in top_clusters.iterrows():
                     st.markdown(f"**{cluster['name']}** ({cluster['size']} items)")
 
@@ -269,76 +310,86 @@ def display_parent_stack():
     """Display navigation breadcrumb"""
     if "navigation_path" not in st.session_state:
         st.session_state.navigation_path = []
-    
+
     if st.session_state.navigation_path:
         breadcrumbs = []
         for i, step in enumerate(st.session_state.navigation_path):
-            #if st.button(f"Level {step['level']}: {step['name']}", key=f"breadcrumb_{i}"):
-                # Go back to this level
+            # if st.button(f"Level {step['level']}: {step['name']}", key=f"breadcrumb_{i}"):
+            # Go back to this level
             #    st.session_state.navigation_path = st.session_state.navigation_path[:i+1]
             #    st.session_state.view_mode = "clusters"
             #    st.rerun()
-            breadcrumbs.append(f"Level {step['level']}: {step['name']}") #added name, can remove
-        
+            breadcrumbs.append(
+                f"Level {step['level']}: {step['name']}"
+            )  # added name, can remove
+
         st.markdown(f"**Path:**\n" + "\n→ ".join(breadcrumbs))
 
-        #if st.button("Home"):
+        # if st.button("Home"):
         #    st.session_state.navigation_path = []
         #    st.session_state.view_mode = "clusters"
         #    st.rerun()
-        #redundant now that back button added
+        # redundant now that back button added
 
 
-def display_cluster_table(df: pd.DataFrame, level: int, color_assignments: Dict, explorer: ClusteringExplorer):
+def display_cluster_table(
+    df: pd.DataFrame, level: int, color_assignments: Dict, explorer: ClusteringExplorer
+):
     """Display a table of clusters with navigation"""
     st.markdown(f"### Level {level} Clusters ({len(df)} total)")
-    
+
     for _, cluster_row in df.iterrows():
         cluster_id = cluster_row["cluster_id"]
-        
+
         col1, col2 = st.columns([8, 2])
-        
+
         with col1:
             st.markdown(f"**{cluster_row['name']}**")
-            if 'description' in cluster_row and pd.notna(cluster_row['description']):
+            if "description" in cluster_row and pd.notna(cluster_row["description"]):
                 st.markdown(f"{cluster_row['description']}")
-        
+
         with col2:
-            st.metric("Size", cluster_row.get('size', 0))
-            
+            st.metric("Size", cluster_row.get("size", 0))
+
             # Check if this cluster has children
             if level > 0:
                 children = explorer.get_child_clusters(level, cluster_id)
                 if len(children) > 0:
                     if st.button(f"Explore →", key=f"explore_{level}_{cluster_id}"):
-                        st.session_state.navigation_path.append({
-                            "level": level,
-                            "cluster_id": cluster_id,
-                            "name": cluster_row['name']
-                        })
+                        st.session_state.navigation_path.append(
+                            {
+                                "level": level,
+                                "cluster_id": cluster_id,
+                                "name": cluster_row["name"],
+                            }
+                        )
                         st.session_state.view_mode = "clusters"
                         st.rerun()
                 else:
                     if st.button(f"Examples →", key=f"examples_{level}_{cluster_id}"):
-                        st.session_state.navigation_path.append({
-                            "level": level,
-                            "cluster_id": cluster_id,
-                            "name": cluster_row['name']
-                        })
+                        st.session_state.navigation_path.append(
+                            {
+                                "level": level,
+                                "cluster_id": cluster_id,
+                                "name": cluster_row["name"],
+                            }
+                        )
                         st.session_state.view_mode = "examples"
                         st.session_state.selected_cluster_id = cluster_id
                         st.rerun()
             else:
                 if st.button(f"Examples →", key=f"examples_{level}_{cluster_id}"):
-                    st.session_state.navigation_path.append({
-                        "level": level,
-                        "cluster_id": cluster_id,
-                        "name": cluster_row['name']
-                    })
+                    st.session_state.navigation_path.append(
+                        {
+                            "level": level,
+                            "cluster_id": cluster_id,
+                            "name": cluster_row["name"],
+                        }
+                    )
                     st.session_state.view_mode = "examples"
                     st.session_state.selected_cluster_id = cluster_id
                     st.rerun()
-        
+
         st.divider()
 
 
@@ -348,28 +399,29 @@ def display_examples(explorer: ClusteringExplorer, cluster_id):
     if combined_data is None:
         st.error("No combined data available")
         return
-    
+
     # Add back button at the top
     if st.button("← Back"):
         if st.session_state.navigation_path:
             st.session_state.navigation_path.pop()
         st.session_state.view_mode = "clusters"
         st.rerun()
-    
+
     # Filter examples for this cluster at any level
     cluster_examples = combined_data[
-        (combined_data["base_cluster_id"] == str(cluster_id)) |
-        (combined_data.get("top_cluster_id", "") == str(cluster_id))
+        (combined_data["base_cluster_id"] == str(cluster_id))
+        | (combined_data.get("top_cluster_id", "") == str(cluster_id))
     ]
-    
+
     st.markdown(f"### Examples ({len(cluster_examples)} total)")
-    
+
     for _, example in cluster_examples.iterrows():
         with st.expander(f"Example: {example['summary']}"):
             st.markdown(f"**Summary:** {example['summary']}")
-            if 'full_example' in example and pd.notna(example['full_example']):
+            if "full_example" in example and pd.notna(example["full_example"]):
                 st.markdown("**Full Example:**")
-                st.text(example['full_example'])
+                st.text(example["full_example"])
+
 
 def show_overview_box(explorer: ClusteringExplorer):
     """Show dataset overview, hierarchy levels, and level previews in a box at the top of the main content."""
@@ -399,7 +451,7 @@ def show_overview_box(explorer: ClusteringExplorer):
 
 def main():
     st.markdown("# Explore Clio Clusters")
-    
+
     # Initialize session state
     if "view_mode" not in st.session_state:
         st.session_state.view_mode = "clusters"
@@ -414,7 +466,7 @@ def main():
         explorer.available_levels = explorer.detect_available_levels()
         explorer.max_level = max(explorer.available_levels)
         explorer.level_names = [f"level_{i}" for i in explorer.available_levels]
-        
+
         if not explorer.data:
             st.error("No data loaded. Please check your configuration and data files.")
             return
@@ -463,7 +515,9 @@ def main():
 
             if len(children) > 0:
                 child_level = current_level - 1
-                display_cluster_table(children, child_level, st.session_state.color_assignments, explorer)
+                display_cluster_table(
+                    children, child_level, st.session_state.color_assignments, explorer
+                )
             else:
                 st.warning("No child clusters found.")
                 display_examples(explorer, current_cluster_id)
@@ -471,7 +525,12 @@ def main():
             # Show top level clusters (highest available level)
             top_level_data = explorer.data.get(f"level_{explorer.max_level}")
             if top_level_data is not None:
-                display_cluster_table(top_level_data, explorer.max_level, st.session_state.color_assignments, explorer)
+                display_cluster_table(
+                    top_level_data,
+                    explorer.max_level,
+                    st.session_state.color_assignments,
+                    explorer,
+                )
             else:
                 # Fallback to level 0 if no higher levels
                 level_0_data = explorer.data.get("level_0")
@@ -480,7 +539,9 @@ def main():
                         if st.button(f"← Back to Level {explorer.max_level} Clusters"):
                             st.session_state.view_mode = "clusters"
                             st.rerun()
-                    display_cluster_table(level_0_data, 0, st.session_state.color_assignments, explorer)
+                    display_cluster_table(
+                        level_0_data, 0, st.session_state.color_assignments, explorer
+                    )
 
 
 if __name__ == "__main__":

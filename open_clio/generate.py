@@ -851,26 +851,38 @@ def cluster_partition_examples(
             example_assignments[f"level_{level}"] = {}
             if level == 1:
                 # For level 1, map from level_0 clusters to level_1 clusters
-                for example_id, base_cluster_id in example_assignments["level_0"].items():
+                for example_id, base_cluster_id in example_assignments[
+                    "level_0"
+                ].items():
                     if base_cluster_id in assignments:
                         # Find the cluster ID for this higher-level cluster name
                         # assignments maps cluster_id to proposed cluster name
                         # We need to find which new cluster this base cluster was assigned to
                         for hl_cluster_id, hl_cluster_info in new_lvl_clusters.items():
-                            if base_cluster_id in hl_cluster_info.get("member_clusters", []):
-                                example_assignments[f"level_{level}"][example_id] = hl_cluster_id
+                            if base_cluster_id in hl_cluster_info.get(
+                                "member_clusters", []
+                            ):
+                                example_assignments[f"level_{level}"][example_id] = (
+                                    hl_cluster_id
+                                )
                                 break
             else:
                 # For level 2+, map from previous level clusters to current level clusters
                 previous_level = f"level_{level - 1}"
-                for example_id, prev_cluster_id in example_assignments[previous_level].items():
+                for example_id, prev_cluster_id in example_assignments[
+                    previous_level
+                ].items():
                     if prev_cluster_id in assignments:
                         # Find the cluster ID for this higher-level cluster name
                         # assignments maps cluster_id to proposed cluster name
                         # We need to find which new cluster this previous cluster was assigned to
                         for hl_cluster_id, hl_cluster_info in new_lvl_clusters.items():
-                            if prev_cluster_id in hl_cluster_info.get("member_clusters", []):
-                                example_assignments[f"level_{level}"][example_id] = hl_cluster_id
+                            if prev_cluster_id in hl_cluster_info.get(
+                                "member_clusters", []
+                            ):
+                                example_assignments[f"level_{level}"][example_id] = (
+                                    hl_cluster_id
+                                )
                                 break
 
             partition_hierarchy[f"level_{level}"] = new_lvl_clusters
@@ -1027,7 +1039,7 @@ def save_results(all_updates, combined_hierarchy):
 
         examples_data.append(row_data)  # examples_data has row_data for every example
     examples_df = pd.DataFrame(examples_data)
-    
+
     examples_df.to_csv(f"{save_path}/combined.csv", index=False)
     # looks like: example_id,full_example,summary,partition,base_cluster_id,base_cluster_name, [intermediates], top_cluster_id,top_cluster_name
     print(f"Saved {len(examples_data)} examples to combined.csv")
@@ -1057,7 +1069,9 @@ def save_results(all_updates, combined_hierarchy):
                     if "member_clusters" in cluster_data:
                         member_uuids = cluster_data["member_clusters"]
                         if isinstance(member_uuids, list):
-                            row["member_clusters"] = str([str(uuid) for uuid in member_uuids])
+                            row["member_clusters"] = str(
+                                [str(uuid) for uuid in member_uuids]
+                            )
                         else:
                             row["member_clusters"] = str(member_uuids)
 
@@ -1081,7 +1095,7 @@ def save_results(all_updates, combined_hierarchy):
 def load_config(config_path: str | None = None):
     """Load configuration from JSON file"""
     if config_path is None:
-        config_path = "./.data/config_2.json" #TODO change
+        config_path = "./.data/config_2.json"  # TODO change
     print(f"Loading config from: {config_path}")
     print(f"Current working directory: {os.getcwd()}")
     with open(config_path, "r") as f:
