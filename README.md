@@ -10,7 +10,7 @@ For setup and usage details, see the quick start guide below.
 
 ### 1. Install 
 ```bash
-uv sync
+uv pip install -e .
 ```
 Also make sure you have valid LangSmith and Anthropic API keys in your environment.
 
