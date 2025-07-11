@@ -1111,7 +1111,6 @@ def validate_hierarchy(hierarchy: Sequence[int], n_examples: int) -> None:
                 f"Level {i} has {hierarchy[i]} clusters, level {i + 1} has {hierarchy[i + 1]}"
             )
 
-
 async def generate_clusters(
     dataset_name: str,
     hierarchy: list,
@@ -1162,13 +1161,9 @@ async def generate_clusters(
     all_updates = []
     combined_hierarchy = {"partitions": {}}
 
-    # enumerate, can count later >> TODO
     for partition, cat_summaries in summaries_by_partition.items():
         example_ids = [s["example_id"] for s in cat_summaries]
         partition_examples = [e for e in examples if e.id in example_ids]
-
-        # no skipping partitions that are problematic
-
         logger.info(f"Clustering examples that belong to partition '{partition}'")
         print(f"\nProcessing partition '{partition}'...")
 
@@ -1181,13 +1176,10 @@ async def generate_clusters(
                 hierarchy,
             )
         except Exception as e:
-            # TODO better error handling
             logger.error(f"ERROR processing partition {partition}: {e}")
             print(f"ERROR processing partition {partition}: {e}")
             continue
         else:
-            # TODO play with updates logic --> combined.csv should be the only result
-
             all_updates.extend(partition_updates)
             combined_hierarchy["partitions"][partition] = partition_hierarchy
 
