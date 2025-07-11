@@ -16,7 +16,7 @@ st.set_page_config(
 
 
 class ClusteringExplorer:
-    def __init__(self, config_path: str = ".data/config.json"): #TODO
+    def __init__(self, config_path: str = ".data/config_customer50.json"): #TODO
         self.config = self.load_config(config_path)
         self.data = {}
         self.save_path = ".data/clustering_results"
@@ -52,7 +52,7 @@ class ClusteringExplorer:
         data = {}
         save_path = _self.save_path
 
-        # Load combined.csv - required
+        # Load combined csv
         combined_path = os.path.join(save_path, "combined.csv")
         if os.path.exists(combined_path):
             try:
@@ -68,7 +68,7 @@ class ClusteringExplorer:
             st.error("Please run generate_clusters.py to generate cluster info")
             st.stop()
 
-        # Detect available levels dynamically
+        # Figure out how many levels exist and load level_{x}_cluster csvs
         _self.available_levels = _self.detect_available_levels()
 
         if not _self.available_levels:
@@ -78,9 +78,6 @@ class ClusteringExplorer:
         _self.max_level = max(_self.available_levels)
         _self.level_names = [f"level_{i}" for i in _self.available_levels]
 
-        # loading_messages.append(f", detected len({_self.available_levels}) levels")
-
-        # Load only the available level data files
         for level_num in _self.available_levels:
             level_name = f"level_{level_num}"
             level_path = os.path.join(save_path, f"{level_name}_clusters.csv")
@@ -344,11 +341,24 @@ def display_cluster_table(
         col1, col2 = st.columns([8, 2])
 
         with col1:
+            # Show cluster name with partition badge if available
+            #cluster_name = f"**{cluster_row['name']}**"
+            #if "partition" in cluster_row and pd.notna(cluster_row["partition"]):
+            #    partition = cluster_row["partition"]
+            #    # Create a small badge-like display for the partition
+            #    st.markdown(f"{cluster_name} 🏷️ **{partition}**")
+            #else:
+            #    st.markdown(cluster_name)
             st.markdown(f"**{cluster_row['name']}**")
             if "description" in cluster_row and pd.notna(cluster_row["description"]):
                 st.markdown(f"{cluster_row['description']}")
 
         with col2:
+            # Show partition information if available
+            if "partition" in cluster_row and pd.notna(cluster_row["partition"]) and explorer.config['partitions'] is not None:
+                partition = cluster_row["partition"]
+                st.markdown(f"**🏷️ {partition}**")
+            
             # Check if this cluster has children
             if level > 0:
                 st.metric("Sub-clusters", cluster_row.get("size", 0))
@@ -422,33 +432,6 @@ def display_examples(explorer: ClusteringExplorer, cluster_id):
                 st.markdown("**Full Example:**")
                 st.text(example["full_example"])
 
-
-def show_overview_box(explorer: ClusteringExplorer):
-    """Show dataset overview, hierarchy levels, and level previews in a box at the top of the main content."""
-    with st.container():
-        st.markdown("### Dataset Overview")
-        level_0_data = explorer.data.get("level_0")
-        if level_0_data is not None:
-            total_items = level_0_data["size"].sum()
-            st.markdown(f"**Total Items:** {total_items:,}")
-        st.divider()
-        st.markdown("### Hierarchy Levels")
-        for level in explorer.available_levels:
-            level_data = explorer.data.get(f"level_{level}")
-            if level_data is not None:
-                count = len(level_data)
-                if level == 0:
-                    label = "(Base)"
-                elif level == explorer.max_level:
-                    label = "(Top)"
-                else:
-                    label = ""
-                st.markdown(f"**Level {level} {label}:** {count} clusters")
-        st.divider()
-        st.markdown("### Level Previews")
-        show_cluster_previews_in_sidebar(explorer)
-
-
 def main():
     st.markdown("# Explore Clio Clusters")
 
@@ -480,18 +463,20 @@ def main():
         st.error("Please check your configuration and data files.")
         return
 
-    # Show the overview box at the top of the main content
-    # show_overview_box(explorer)
-
     # Show dataset info with actual hierarchy display
     hierarchy_display = build_hierarchy_display(explorer)
     st.markdown(f"**Dataset:** {explorer.config['dataset_name']}")
     st.markdown(f"**Hierarchy:** {hierarchy_display}")
+    if explorer.config['partitions'] is not None:
+        partitions_pretty_print = ", ".join([f"{k}" for k in explorer.config['partitions'].keys()])
+    else:
+        partitions_pretty_print = "None"
+    st.markdown(f"**Partitions (🏷️):** {partitions_pretty_print}")
 
-    # Show navigation breadcrumb
+    # Nav breadcrumb
     display_parent_stack()
 
-    # Decide what content to show based on current view mode
+    # Shov examples or clusters based on what we're viewing currently
     if st.session_state.view_mode == "examples":
         if "selected_cluster_id" in st.session_state:
             display_examples(explorer, st.session_state.selected_cluster_id)
@@ -522,7 +507,7 @@ def main():
                 st.warning("No child clusters found.")
                 display_examples(explorer, current_cluster_id)
         else:
-            # Show top level clusters (highest available level)
+            # Show top level clusters 
             top_level_data = explorer.data.get(f"level_{explorer.max_level}")
             if top_level_data is not None:
                 display_cluster_table(
@@ -532,7 +517,7 @@ def main():
                     explorer,
                 )
             else:
-                # Fallback to level 0 if no higher levels
+                # or fallback to level 0 
                 level_0_data = explorer.data.get("level_0")
                 if level_0_data is not None:
                     if explorer.max_level > 0:

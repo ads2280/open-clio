@@ -794,9 +794,7 @@ def cluster_partition_examples(
                 scaled_level_sizes.append(max(2, n_level))  # each level has at least 2
             scaled_level_sizes.append(partition_ktop)
 
-    print(
-        f"Planned hierarchy sizes for partition '{partition}': {n_base} + {scaled_level_sizes}"
-    )
+    print(f"Planned hierarchy sizes for partition '{partition}': {n_base} + {scaled_level_sizes}")
 
     # Build clusters for each level in the hierarchy
     for level in range(1, levels):
@@ -1132,6 +1130,12 @@ async def generate_clusters(
     sample: int | None = None,
     max_concurrency: int = DEFAULT_SUMMARIZATION_CONCURRENCY,
 ):
+    # partitions/top level clusters
+    num_partitions = len(partitions.keys())
+    num_top_level_clusters = hierarchy[-1]
+    if num_partitions != num_top_level_clusters:
+        warnings.warn(f'Number of partitions ({num_partitions}) does not match number of top-level clusters ({num_top_level_clusters})')
+    
     # load data
     print(f"Loading and summarizing examples from '{dataset_name}' dataset")
 
