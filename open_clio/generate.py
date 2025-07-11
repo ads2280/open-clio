@@ -574,7 +574,7 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
         }
 
         print(
-            f"Level {level} Cluster {hl_id}: {name} ({len(member_cluster_ids)} sub-clusters, {total_size} total items)"
+            f"Level {level} Cluster {hl_id}: {name} ({len(member_cluster_ids)} sub-clusters, {total_size} total items\n)"
         )
         time.sleep(1.0)
 
@@ -954,7 +954,7 @@ def save_results(all_updates, combined_hierarchy, save_path=None):
     print("\nOverview of clustering results:")
 
     for partition, hierarchy in combined_hierarchy["partitions"].items():
-        print(f"\npartition: {partition}")
+        print(f"\nPartition: {partition}")
         print(f"Base clusters: {len(hierarchy['level_0'])}")
         if hierarchy["max_level"] > 0:
             for level in range(1, hierarchy["max_level"] + 1):
