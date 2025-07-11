@@ -227,12 +227,12 @@ def main(config_dict=None):
         partitions, \
         examples
 
-    # Set up global variables from config
+    # import variables from config
     config = config_dict
     dataset_name = config["dataset_name"]
     save_path = config.get("save_path", "./clustering_results")
 
-    # Load data files
+    # load data files from save_path
     combined_df = pd.read_csv(f"{save_path}/combined.csv")
     clusters_df = pd.read_csv(f"{save_path}/level_0_clusters.csv")  # base clusters
     all_base_clusters = clusters_df["name"].tolist()
@@ -245,7 +245,6 @@ def main(config_dict=None):
     # Respect sample limit from config if specified
     sample_limit = config.get("sample")
     if sample_limit is not None:
-        print(f"Limiting evaluation to {sample_limit} samples as specified in config")
         examples = list(
             client.list_examples(dataset_name=dataset_name, limit=sample_limit)
         )
@@ -280,7 +279,7 @@ def main(config_dict=None):
             print("Please enter 'y' or 'n'")
 
     # run eval
-    print("Starting evaluation...")
+    print(f"Running Clio evals on {len(examples)} examples...")
     results = client.evaluate(
         dummy_target,
         data=client.list_examples(dataset_name=dataset_name, limit=sample_limit),

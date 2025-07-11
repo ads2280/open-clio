@@ -87,6 +87,6 @@ def update_dataset(config):
             }
         )
 
-    print(f"{len(updates)} updates created")
+    print(f"Created {len(updates)} updates")
 
     client.update_examples(updates=updates, dataset_name=dataset_name)
