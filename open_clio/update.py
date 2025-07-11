@@ -1,4 +1,3 @@
-# todo edit this for multiple levels
 import pandas as pd
 from langsmith import Client
 from open_clio.generate import load_config
@@ -20,11 +19,31 @@ for idx, example in enumerate(examples):
             "id": row.get("base_cluster_id"),
             "name": row.get("base_cluster_name"),
         },
-        "level_1": {
-            "id": row.get("top_cluster_id"),
-            "name": row.get("top_cluster_name"),
-        },
     }
+
+    # only add level_1 if the columns exist and have valid values
+    if (
+        "level_1_id" in row
+        and "level_1_name" in row
+        and pd.notna(row.get("level_1_id"))
+        and pd.notna(row.get("level_1_name"))
+    ):
+        clustering["level_1"] = {
+            "id": row.get("level_1_id"),
+            "name": row.get("level_1_name"),
+        }
+
+    # only add level_2 if the columns exist and have valid values
+    if (
+        "level_2_id" in row
+        and "level_2_name" in row
+        and pd.notna(row.get("level_2_id"))
+        and pd.notna(row.get("level_2_name"))
+    ):
+        clustering["level_2"] = {
+            "id": row.get("level_2_id"),
+            "name": row.get("level_2_name"),
+        }
 
     new_outputs = {
         "summary": row.get("summary"),
