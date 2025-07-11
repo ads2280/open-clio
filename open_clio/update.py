@@ -11,16 +11,20 @@ def update_dataset(config):
     save_path = config.get("save_path", "./clustering_results")
 
     combined_df = pd.read_csv(f"{save_path}/combined.csv")
-    
+
     # to compare example.id from langsmith with example_id from combined.csv, need to convert both to strings
-    combined_df['example_id'] = combined_df['example_id'].astype(str)
-    combined_df.set_index('example_id', inplace=True)
+    combined_df["example_id"] = combined_df["example_id"].astype(str)
+    combined_df.set_index("example_id", inplace=True)
 
     # Respect sample limit from config if specified
     sample_limit = config.get("sample")
     if sample_limit is not None:
-        print(f"Limiting dataset update to {sample_limit} samples as specified in config")
-        examples = list(client.list_examples(dataset_name=dataset_name, limit=sample_limit))
+        print(
+            f"Limiting dataset update to {sample_limit} samples as specified in config"
+        )
+        examples = list(
+            client.list_examples(dataset_name=dataset_name, limit=sample_limit)
+        )
     else:
         examples = list(client.list_examples(dataset_name=dataset_name))
     print(f"Found {len(examples)} examples to update")
@@ -28,11 +32,13 @@ def update_dataset(config):
     updates = []
     for example in examples:
         example_id_str = str(example.id)
-        
+
         if example_id_str not in combined_df.index:
-            print(f"Warning: Example {example_id_str} not found in combined.csv, skipping...")
+            print(
+                f"Warning: Example {example_id_str} not found in combined.csv, skipping..."
+            )
             continue
-            
+
         row = combined_df.loc[example_id_str]
 
         clustering = {

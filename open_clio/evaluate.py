@@ -241,12 +241,14 @@ def main(config_dict=None):
     )
     total_base_clusters = len(all_base_clusters)
     partitions = combined_df["partition"].unique().tolist()
-    
+
     # Respect sample limit from config if specified
     sample_limit = config.get("sample")
     if sample_limit is not None:
         print(f"Limiting evaluation to {sample_limit} samples as specified in config")
-        examples = list(client.list_examples(dataset_name=dataset_name, limit=sample_limit))
+        examples = list(
+            client.list_examples(dataset_name=dataset_name, limit=sample_limit)
+        )
     else:
         examples = list(client.list_examples(dataset_name=dataset_name))
 
