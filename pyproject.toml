@@ -17,6 +17,10 @@ dependencies = [
     "openevals>=0.1.0",
     "jupyter>=1.1.1",
 ]
+
+[project.scripts]
+open-clio = "open_clio.main:main"
+
 [tool.setuptools.packages.find]
 include = ["open_clio*"]
 exclude = ["notebooks*", "tests*"]

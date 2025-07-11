@@ -1,6 +1,4 @@
-import argparse
 import asyncio
-import json
 import os
 import random
 import time
@@ -30,7 +28,6 @@ from open_clio.prompts import (
 )
 from pydantic import BaseModel, Field
 from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
 from logging import getLogger
 
 logger = getLogger(__file__)
@@ -158,7 +155,6 @@ def perform_base_clustering(
         tuple: (cluster_info, cluster_labels)
     """
     # generate embeddings
-    print(f"Generating base clusters...")
     embeddings = np.array(embedder.embed_documents([s["summary"] for s in summaries]))
 
     # apply kmeans clustering
@@ -578,7 +574,7 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
         }
 
         print(
-            f"Level {level} Cluster {hl_id}: {name} ({len(member_cluster_ids)} sub-clusters, {total_size} total items)"
+            f"Level {level} Cluster {hl_id}: {name} ({len(member_cluster_ids)} sub-clusters, {total_size} total items\n)"
         )
         time.sleep(1.0)
 
@@ -751,7 +747,11 @@ def cluster_partition_examples(
         f"Examples: {len(examples)}\nTarget base clusters: {partition_k}\nTarget top clusters: {partition_ktop}"
     )
 
-    # Perform base clustering
+    # perform base clustering
+    print("Generating base clusters...\n")
+    print("\n=== STARTING LEVEL 0 (BASE CLUSTERING) ===")
+    print(f"Targeting {partition_k} base clusters\n")
+
     if partition_k > 1:
         cluster_info = perform_base_clustering(summaries, partition_k, partition)
     else:
@@ -783,18 +783,16 @@ def cluster_partition_examples(
         "level_0": {eid: c["id"] for c in cluster_info for eid in c["examples"]}
     }
     levels = len(hierarchy)
-    if not single_partition:
-        # use geometric progression
-        levels = len(hierarchy)
-        if levels == 2:
-            scaled_level_sizes = [partition_ktop]
-        else:
-            ratio = (partition_ktop / n_base) ** (1 / (levels - 1)) 
-            scaled_level_sizes = []
-            for level in range(1, levels):
-                n_level = int(n_base * (ratio**level))
-                scaled_level_sizes.append(max(2, n_level))  # each level has at least 2
-            scaled_level_sizes.append(partition_ktop)
+    # Always use geometric progression for consistent behavior
+    if levels == 2:
+        scaled_level_sizes = [partition_ktop]
+    else:
+        ratio = (partition_ktop / n_base) ** (1 / (levels - 1))
+        scaled_level_sizes = []
+        for level in range(1, levels):
+            n_level = int(n_base * (ratio**level))
+            scaled_level_sizes.append(max(2, n_level))  # each level has at least 2
+        scaled_level_sizes.append(partition_ktop)
 
     print(
         f"Planned hierarchy sizes for partition '{partition}': {n_base} + {scaled_level_sizes}"
@@ -948,13 +946,15 @@ def cluster_partition_examples(
     # calculate next cluster id offset
     return partition_updates, partition_hierarchy
 
-def save_results(all_updates, combined_hierarchy):
+
+def save_results(all_updates, combined_hierarchy, save_path=None):
     # print results summary
-    save_path = f".data/clustering_results/"
+    if save_path is None:
+        save_path = "./clustering_results"
     print("\nOverview of clustering results:")
 
     for partition, hierarchy in combined_hierarchy["partitions"].items():
-        print(f"\npartition: {partition}")
+        print(f"\nPartition: {partition}")
         print(f"Base clusters: {len(hierarchy['level_0'])}")
         if hierarchy["max_level"] > 0:
             for level in range(1, hierarchy["max_level"] + 1):
@@ -1089,34 +1089,22 @@ def save_results(all_updates, combined_hierarchy):
         print(f"Saved {len(cluster_list)} clusters to {level_name}_clusters.csv")
 
     print(f"\nSee {save_path} for csv files.")
-    print("\nthe end")
-
-
-def load_config(config_path: str | None = None):
-    """Load configuration from JSON file"""
-    if config_path is None:
-        config_path = "./.data/config_exp.json"  # TODO change
-    print(f"Loading config from: {config_path}")
-    print(f"Current working directory: {os.getcwd()}")
-    with open(config_path, "r") as f:
-        return json.load(f)
 
 
 def validate_hierarchy(hierarchy: Sequence[int], n_examples: int) -> None:
-    """check if hierarchy makes sense"""
-    # Checks for too many levels - max 2 
-    #if len(hierarchy) > 2: 
-    #    raise ValueError(
-    #        f"Hierarchy with {len(hierarchy)} levels is not supported. Maximum 2 levels allowed."
-    #        f" Current hierarchy: {hierarchy}"
-    #    ) 
-    
+    """Check if hierarchy makes logical sense"""
+    if len(hierarchy) > 3:
+        warnings.warn(
+            f"Warning: {len(hierarchy)} levels may be too many for {n_examples} examples."
+            f" Consider starting with <=3 levels for meaningful results."
+        )
+
     if hierarchy[0] > n_examples:
         raise ValueError(
             f"Cannot specify more base clusters ({hierarchy[0]}) than"
             " there are dataset examples ({n_examples})."
         )
-    suggested_max_k = max(int(np.sqrt(n_examples)), n_examples // 3) 
+    suggested_max_k = max(int(np.sqrt(n_examples)), n_examples // 3)
     if hierarchy[0] > suggested_max_k:
         warnings.warn(
             f"Warning: {hierarchy[0]} base clusters may be too many for {n_examples} examples."
@@ -1136,6 +1124,7 @@ async def generate_clusters(
     hierarchy: list,
     summary_prompt: str,  # TODO
     *,
+    save_path: str | None = None,
     partitions: dict | None = None,
     sample: int | None = None,
     max_concurrency: int = DEFAULT_SUMMARIZATION_CONCURRENCY,
@@ -1186,9 +1175,7 @@ async def generate_clusters(
 
         # no skipping partitions that are problematic
 
-        print(
-            f"\n\nStarting to cluster examples that belong to partition '{partition}'"
-        )
+        print(f"\n\nClustering examples that belong to partition '{partition}'\n")
 
         try:
             partition_updates, partition_hierarchy = cluster_partition_examples(
@@ -1213,29 +1200,4 @@ async def generate_clusters(
 
     print("\nAll partitions have been processed, clustering complete!")
     # Save results to csvs
-    save_results(all_updates, combined_hierarchy)
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Running Clio clustering")
-    parser.add_argument("action", help="Action to perform (e.g., 'cluster', 'summarize')")
-    parser.add_argument("--dataset", help="Override dataset name")
-    parser.add_argument("--config", help="Path to config")
-    args = parser.parse_args()
-
-    config = load_config(args.config)
-    if args.dataset:
-        config["dataset_name"] = args.dataset
-
-    print("Starting Clio clustering...")
-    print(f"Dataset: {config['dataset_name']}")
-    print(f"Hierarchy (number of examples at each level): {config['hierarchy']}\n")
-    if args.action == 'generate':
-        asyncio.run(generate_clusters(**config))
-        sys.argv = ["streamlit", "run", __file__, "--server.headless", "true"]
-        sys.exit(stcli.main())
-    elif args.action == 'evaluate':
-        asyncio.run(eval...(**config))
-    elif args.action == 'viz':
-        ...
-       
+    save_results(all_updates, combined_hierarchy, save_path)
