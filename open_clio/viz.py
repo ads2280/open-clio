@@ -16,12 +16,12 @@ st.set_page_config(
 
 
 class ClusteringExplorer:
-    def __init__(self, config_path: str = ".data/config_2.json"):
+    def __init__(self, config_path: str = ".data/config.json"): #TODO
         self.config = self.load_config(config_path)
         self.data = {}
         self.save_path = ".data/clustering_results"
 
-        # Dynamically detect available levels instead of using config
+        # find available levels withoutusing config
         self.available_levels = []
         self.max_level = 0
         self.level_names = []
@@ -349,10 +349,9 @@ def display_cluster_table(
                 st.markdown(f"{cluster_row['description']}")
 
         with col2:
-            st.metric("Size", cluster_row.get("size", 0))
-
             # Check if this cluster has children
             if level > 0:
+                st.metric("Sub-clusters", cluster_row.get("size", 0))
                 children = explorer.get_child_clusters(level, cluster_id)
                 if len(children) > 0:
                     if st.button(f"Explore →", key=f"explore_{level}_{cluster_id}"):
@@ -378,6 +377,7 @@ def display_cluster_table(
                         st.session_state.selected_cluster_id = cluster_id
                         st.rerun()
             else:
+                st.metric("Size", cluster_row.get("size", 0))
                 if st.button(f"Examples →", key=f"examples_{level}_{cluster_id}"):
                     st.session_state.navigation_path.append(
                         {

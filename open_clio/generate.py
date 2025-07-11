@@ -1,4 +1,3 @@
-# updated for new ds
 import argparse
 import asyncio
 import json
@@ -165,9 +164,9 @@ def perform_base_clustering(
     # apply kmeans clustering
     kmeans = KMeans(n_clusters=partition_k, random_state=42, n_init=10, max_iter=300)
     clusters = kmeans.fit_predict(embeddings)
-    if len(np.unique(clusters)) >= 2:
-        silhouette = silhouette_score(embeddings, clusters)
-        print(f"silhoutte score: {silhouette}")
+    #if len(np.unique(clusters)) >= 2:
+    #    silhouette = silhouette_score(embeddings, clusters)
+    #    print(f"silhoutte score: {silhouette}")
 
     # generate descriptions for all clusters
     return generate_cluster_descriptions(clusters, summaries, embeddings, partition)
@@ -561,7 +560,7 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
             name = (
                 content[name_start:name_end].strip()
                 if name_start != -1 and name_end != -1
-                else f"Level {level} Cluster {hl_id}"
+                else f"Level {level} Cluster {hl_id}\n"
             )
 
         except Exception as e:
@@ -623,7 +622,7 @@ def generate_cluster_descriptions(
             }
         )
 
-        print(f"Cluster {cluster_id}: {description} ({len(cluster_summaries)} items)")
+        print(f"Level 0 Cluster {cluster_id}: {description} ({len(cluster_summaries)} items)\n")
 
     return cluster_info
 
@@ -1095,7 +1094,7 @@ def save_results(all_updates, combined_hierarchy):
 def load_config(config_path: str | None = None):
     """Load configuration from JSON file"""
     if config_path is None:
-        config_path = "./.data/config_2.json"  # TODO change
+        config_path = "./.data/config.json"  # TODO change
     print(f"Loading config from: {config_path}")
     print(f"Current working directory: {os.getcwd()}")
     with open(config_path, "r") as f:
