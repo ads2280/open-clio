@@ -15,7 +15,7 @@ uv pip install -e .
 Also make sure you have valid LangSmith and Anthropic API keys in your environment.
 
 ### 2. Set up your configuration
-Choose a dataset to run Clio clustering on and create a `config.json` file, or see below for an example `config.json` to test Clio with.
+Choose a dataset to run Clio clustering on and create a `config.json` file, or skip this step and test with `example_config.json`.
 ```json
 {
     "dataset_name": "your-langsmith-dataset-name",
