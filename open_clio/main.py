@@ -10,8 +10,6 @@ from open_clio.generate import generate_clusters
 def load_config(config_path=None):
     if config_path is None:
         config_path = "./config.json"
-    print(f"Loading config from: {config_path}")
-    print(f"Current working directory: {os.getcwd()}")
     with open(config_path, "r") as f:
         config = json.load(f)
 
@@ -19,9 +17,10 @@ def load_config(config_path=None):
 
 
 def run_generate(config):
-    print("Starting Clio clustering...")
+    print("=== STARTING CLUSTERING PIPELINE===")
     print(f"Dataset: {config['dataset_name']}")
     print(f"Hierarchy (number of examples at each level): {config['hierarchy']}\n")
+    print(f"Current working directory: {os.getcwd()}")
 
     asyncio.run(generate_clusters(**config))
     print("Clustering complete!")

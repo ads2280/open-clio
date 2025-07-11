@@ -783,18 +783,16 @@ def cluster_partition_examples(
         "level_0": {eid: c["id"] for c in cluster_info for eid in c["examples"]}
     }
     levels = len(hierarchy)
-    if not single_partition:
-        # use geometric progression
-        levels = len(hierarchy)
-        if levels == 2:
-            scaled_level_sizes = [partition_ktop]
-        else:
-            ratio = (partition_ktop / n_base) ** (1 / (levels - 1))
-            scaled_level_sizes = []
-            for level in range(1, levels):
-                n_level = int(n_base * (ratio**level))
-                scaled_level_sizes.append(max(2, n_level))  # each level has at least 2
-            scaled_level_sizes.append(partition_ktop)
+    # Always use geometric progression for consistent behavior
+    if levels == 2:
+        scaled_level_sizes = [partition_ktop]
+    else:
+        ratio = (partition_ktop / n_base) ** (1 / (levels - 1))
+        scaled_level_sizes = []
+        for level in range(1, levels):
+            n_level = int(n_base * (ratio**level))
+            scaled_level_sizes.append(max(2, n_level))  # each level has at least 2
+        scaled_level_sizes.append(partition_ktop)
 
     print(
         f"Planned hierarchy sizes for partition '{partition}': {n_base} + {scaled_level_sizes}"
@@ -1095,12 +1093,11 @@ def save_results(all_updates, combined_hierarchy, save_path=None):
 
 def validate_hierarchy(hierarchy: Sequence[int], n_examples: int) -> None:
     """check if hierarchy makes sense"""
-    # Checks for too many levels - max 2
-    # if len(hierarchy) > 2:
-    #    raise ValueError(
-    #        f"Hierarchy with {len(hierarchy)} levels is not supported. Maximum 2 levels allowed."
-    #        f" Current hierarchy: {hierarchy}"
-    #    )
+    if len(hierarchy) > 3:
+        warnings.warn(
+            f"Warning: {len(hierarchy)} levels may be too many for {n_examples} examples."
+            f" Consider starting with <=3 levels for meaningful results."
+        )
 
     if hierarchy[0] > n_examples:
         raise ValueError(
