@@ -17,7 +17,7 @@ def load_config(config_path=None):
 
 
 def run_generate(config):
-    print("=== STARTING CLUSTERING PIPELINE===")
+    print("Starting Clio clustering pipeline...")
     print(f"Dataset: {config['dataset_name']}")
     print(f"Hierarchy (number of examples at each level): {config['hierarchy']}\n")
     print(f"Current working directory: {os.getcwd()}")
