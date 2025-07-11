@@ -1092,7 +1092,7 @@ def save_results(all_updates, combined_hierarchy, save_path=None):
 
 
 def validate_hierarchy(hierarchy: Sequence[int], n_examples: int) -> None:
-    """check if hierarchy makes sense"""
+    """Check if hierarchy makes logical sense"""
     if len(hierarchy) > 3:
         warnings.warn(
             f"Warning: {len(hierarchy)} levels may be too many for {n_examples} examples."
