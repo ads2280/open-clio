@@ -1,4 +1,3 @@
-# updated for new ds
 import argparse
 import asyncio
 import json
@@ -9,6 +8,7 @@ from collections import defaultdict
 from typing import Sequence
 import warnings
 import uuid
+from tqdm import tqdm
 
 from open_clio.internal.utils import gated_coro
 from open_clio.internal import schemas
@@ -122,12 +122,18 @@ async def summarize_all(
 
     semaphore = asyncio.Semaphore(max_concurrency)
 
-    # TODO: add progress bar
     tasks = [
         gated_coro(summarize_example(example, partitions, summary_prompt), semaphore)
         for example in examples
     ]
-    summaries = await asyncio.gather(*tasks)  # each coroutine as separate task in list
+    summaries = []
+    with tqdm(total=len(tasks), desc="Generating summaries") as pbar:
+        for coro in asyncio.as_completed(tasks):
+            result = await coro
+            summaries.append(result)
+            pbar.update(1)
+
+    # summaries = await asyncio.gather(*tasks)
     num_successful = sum(s is not None for s in summaries)
     total_ex = len(examples)
     print(
@@ -152,17 +158,15 @@ def perform_base_clustering(
         tuple: (cluster_info, cluster_labels)
     """
     # generate embeddings
+    print(f"Generating base clusters...")
     embeddings = np.array(embedder.embed_documents([s["summary"] for s in summaries]))
-    # this assumes you'll never have less partitions than k, can add a min(k, len(summaries)) check l8er
 
     # apply kmeans clustering
     kmeans = KMeans(n_clusters=partition_k, random_state=42, n_init=10, max_iter=300)
     clusters = kmeans.fit_predict(embeddings)
-    if len(np.unique(clusters)) >= 2:
-        silhouette = silhouette_score(embeddings, clusters)
-        print(f"silhoutte score: {silhouette}")
-
-    # print(f"unique clusters: {np.unique(clusters)}")
+    # if len(np.unique(clusters)) >= 2:
+    #    silhouette = silhouette_score(embeddings, clusters)
+    #    print(f"silhoutte score: {silhouette}")
 
     # generate descriptions for all clusters
     return generate_cluster_descriptions(clusters, summaries, embeddings, partition)
@@ -327,7 +331,7 @@ cluster names that could encompass multiple sub-clusters within the LangChain ec
         except Exception as e:
             print(f"Error proposing clusters for neighborhood {neighborhood_id}: {e}")
             time.sleep(1.0)  # Sleep even on error to respect rate limits
-
+    print(f"Proposed clusters: {proposed}")
     return proposed
 
 
@@ -400,7 +404,7 @@ I understand. I'll deduplicate the cluster names into approximately {target_clus
         deduplicated = proposed[:target_clusters]
 
     print(f"Final deduplicated clusters: {deduplicated}")
-    time.sleep(2.0)  
+    time.sleep(2.0)
     return deduplicated
 
 
@@ -511,7 +515,8 @@ def rename_higher_level_clusters(current_clusters, assignments, level, partition
             cluster_groups[assigned_hl] = []
         cluster_groups[assigned_hl].append(cluster_id)
 
-    for hl_id, (hl_name, member_cluster_ids) in enumerate(cluster_groups.items()):
+    for hl_name, member_cluster_ids in cluster_groups.items():
+        hl_id = uuid.uuid4()
         # building list of member clusters for prompt
         cluster_list = []  # changed from members
         total_size = 0
@@ -555,7 +560,7 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
             name = (
                 content[name_start:name_end].strip()
                 if name_start != -1 and name_end != -1
-                else f"Level {level} Cluster {hl_id}"
+                else f"Level {level} Cluster {hl_id}\n"
             )
 
         except Exception as e:
@@ -575,7 +580,7 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
         print(
             f"Level {level} Cluster {hl_id}: {name} ({len(member_cluster_ids)} sub-clusters, {total_size} total items)"
         )
-        time.sleep(1.0)  # Sleep after each higher-level cluster renaming
+        time.sleep(1.0)
 
     return new_lvl_clusters
 
@@ -617,7 +622,9 @@ def generate_cluster_descriptions(
             }
         )
 
-        print(f"Cluster {cluster_id}: {description} ({len(cluster_summaries)} items)")
+        print(
+            f"Level 0 Cluster {cluster_id}: {description} ({len(cluster_summaries)} items)\n"
+        )
 
     return cluster_info
 
@@ -782,7 +789,7 @@ def cluster_partition_examples(
         if levels == 2:
             scaled_level_sizes = [partition_ktop]
         else:
-            ratio = (partition_ktop / n_base) ** (1 / (levels - 1))
+            ratio = (partition_ktop / n_base) ** (1 / (levels - 1)) 
             scaled_level_sizes = []
             for level in range(1, levels):
                 n_level = int(n_base * (ratio**level))
@@ -792,13 +799,6 @@ def cluster_partition_examples(
     print(
         f"Planned hierarchy sizes for partition '{partition}': {n_base} + {scaled_level_sizes}"
     )
-
-    print(f"Debug: levels = {levels}")
-    print(f"Debug: scaled_level_sizes = {scaled_level_sizes}")
-    print(f"Debug: len(current_clusters) = {len(current_clusters)}")
-    print(
-        f"Debug: current_clusters keys = {list(current_clusters.keys())[:3]}..."
-    )  # first 3 keys# first 3 keys
 
     # Build clusters for each level in the hierarchy
     for level in range(1, levels):
@@ -850,17 +850,41 @@ def cluster_partition_examples(
 
             # Track example assignments for this level
             example_assignments[f"level_{level}"] = {}
-            for example_id, base_cluster_id in example_assignments["level_0"].items():
-                # Find which higher-level cluster this base cluster was assigned to
-                if base_cluster_id in assignments:
-                    higher_level_cluster_name = assignments[base_cluster_id]
-                    # Find the cluster ID for this higher-level cluster name
-                    for hl_cluster_id, hl_cluster_info in new_lvl_clusters.items():
-                        if hl_cluster_info["name"] == higher_level_cluster_name:
-                            example_assignments[f"level_{level}"][example_id] = (
-                                hl_cluster_id
-                            )
-                            break
+            if level == 1:
+                # For level 1, map from level_0 clusters to level_1 clusters
+                for example_id, base_cluster_id in example_assignments[
+                    "level_0"
+                ].items():
+                    if base_cluster_id in assignments:
+                        # Find the cluster ID for this higher-level cluster name
+                        # assignments maps cluster_id to proposed cluster name
+                        # We need to find which new cluster this base cluster was assigned to
+                        for hl_cluster_id, hl_cluster_info in new_lvl_clusters.items():
+                            if base_cluster_id in hl_cluster_info.get(
+                                "member_clusters", []
+                            ):
+                                example_assignments[f"level_{level}"][example_id] = (
+                                    hl_cluster_id
+                                )
+                                break
+            else:
+                # For level 2+, map from previous level clusters to current level clusters
+                previous_level = f"level_{level - 1}"
+                for example_id, prev_cluster_id in example_assignments[
+                    previous_level
+                ].items():
+                    if prev_cluster_id in assignments:
+                        # Find the cluster ID for this higher-level cluster name
+                        # assignments maps cluster_id to proposed cluster name
+                        # We need to find which new cluster this previous cluster was assigned to
+                        for hl_cluster_id, hl_cluster_info in new_lvl_clusters.items():
+                            if prev_cluster_id in hl_cluster_info.get(
+                                "member_clusters", []
+                            ):
+                                example_assignments[f"level_{level}"][example_id] = (
+                                    hl_cluster_id
+                                )
+                                break
 
             partition_hierarchy[f"level_{level}"] = new_lvl_clusters
             partition_hierarchy["max_level"] = level
@@ -924,10 +948,9 @@ def cluster_partition_examples(
     # calculate next cluster id offset
     return partition_updates, partition_hierarchy
 
-
 def save_results(all_updates, combined_hierarchy):
     # print results summary
-    save_path = ".data/clustering_results"
+    save_path = f".data/clustering_results/"
     print("\nOverview of clustering results:")
 
     for partition, hierarchy in combined_hierarchy["partitions"].items():
@@ -949,6 +972,7 @@ def save_results(all_updates, combined_hierarchy):
 
     for update in all_updates:
         clustering = update["outputs"]["clustering"]
+        # print(f"clustering: {clustering}")
 
         # Get base cluster info
         base_cluster_id = clustering.get("level_0", {}).get("id", None)
@@ -967,9 +991,15 @@ def save_results(all_updates, combined_hierarchy):
                 ].get("name", "")
 
         # Get top level info (highest level reached)
-        top_level = max(clustering.keys()) if clustering else "level_0"
-        top_cluster_id = clustering.get(top_level, {}).get("id", None)
-        top_cluster_name = clustering.get(top_level, {}).get("name", "")
+        if "level_1" in clustering:
+            top_cluster_id = clustering["level_1"]["id"]
+            top_cluster_name = clustering["level_1"]["name"]
+        elif "level_0" in clustering:
+            top_cluster_id = clustering["level_0"].get("id", None)
+            top_cluster_name = clustering["level_0"].get("name", "")
+        else:
+            top_cluster_id = None
+            top_cluster_name = ""
 
         # Create full example text (combine inputs if available)
         full_example = ""
@@ -1005,10 +1035,11 @@ def save_results(all_updates, combined_hierarchy):
                 "top_cluster_name": top_cluster_name,
             }
         )
+        # print(f"\nrow_data: {row_data}")
 
         examples_data.append(row_data)  # examples_data has row_data for every example
-
     examples_df = pd.DataFrame(examples_data)
+
     examples_df.to_csv(f"{save_path}/combined.csv", index=False)
     # looks like: example_id,full_example,summary,partition,base_cluster_id,base_cluster_name, [intermediates], top_cluster_id,top_cluster_name
     print(f"Saved {len(examples_data)} examples to combined.csv")
@@ -1036,7 +1067,13 @@ def save_results(all_updates, combined_hierarchy):
                     if "total_size" in cluster_data:
                         row["total_size"] = cluster_data["total_size"]
                     if "member_clusters" in cluster_data:
-                        row["member_clusters"] = str(cluster_data["member_clusters"])
+                        member_uuids = cluster_data["member_clusters"]
+                        if isinstance(member_uuids, list):
+                            row["member_clusters"] = str(
+                                [str(uuid) for uuid in member_uuids]
+                            )
+                        else:
+                            row["member_clusters"] = str(member_uuids)
 
                     all_clusters[level_key].append(row)
 
@@ -1058,7 +1095,7 @@ def save_results(all_updates, combined_hierarchy):
 def load_config(config_path: str | None = None):
     """Load configuration from JSON file"""
     if config_path is None:
-        config_path = "config.json"
+        config_path = "./.data/config_exp.json"  # TODO change
     print(f"Loading config from: {config_path}")
     print(f"Current working directory: {os.getcwd()}")
     with open(config_path, "r") as f:
@@ -1067,12 +1104,19 @@ def load_config(config_path: str | None = None):
 
 def validate_hierarchy(hierarchy: Sequence[int], n_examples: int) -> None:
     """check if hierarchy makes sense"""
+    # Checks for too many levels - max 2 
+    #if len(hierarchy) > 2: 
+    #    raise ValueError(
+    #        f"Hierarchy with {len(hierarchy)} levels is not supported. Maximum 2 levels allowed."
+    #        f" Current hierarchy: {hierarchy}"
+    #    ) 
+    
     if hierarchy[0] > n_examples:
         raise ValueError(
             f"Cannot specify more base clusters ({hierarchy[0]}) than"
             " there are dataset examples ({n_examples})."
         )
-    suggested_max_k = max(int(np.sqrt(n_examples)), n_examples // 3)  # max not min
+    suggested_max_k = max(int(np.sqrt(n_examples)), n_examples // 3) 
     if hierarchy[0] > suggested_max_k:
         warnings.warn(
             f"Warning: {hierarchy[0]} base clusters may be too many for {n_examples} examples."
@@ -1096,6 +1140,15 @@ async def generate_clusters(
     sample: int | None = None,
     max_concurrency: int = DEFAULT_SUMMARIZATION_CONCURRENCY,
 ):
+    # partitions/top level clusters
+    if partitions is not None:
+        num_partitions = len(partitions.keys())
+        num_top_level_clusters = hierarchy[-1]
+        if num_partitions != num_top_level_clusters:
+            warnings.warn(
+                f"Number of partitions ({num_partitions}) does not match number of top-level clusters ({num_top_level_clusters})"
+            )
+
     # load data
     print(f"Loading and summarizing examples from '{dataset_name}' dataset")
 
@@ -1133,7 +1186,9 @@ async def generate_clusters(
 
         # no skipping partitions that are problematic
 
-        print(f"\n\nStarting to cluster examples that belong to partition '{partition}'")
+        print(
+            f"\n\nStarting to cluster examples that belong to partition '{partition}'"
+        )
 
         try:
             partition_updates, partition_hierarchy = cluster_partition_examples(
@@ -1157,13 +1212,13 @@ async def generate_clusters(
             time.sleep(3.0)  # Sleep between partitions
 
     print("\nAll partitions have been processed, clustering complete!")
-
     # Save results to csvs
     save_results(all_updates, combined_hierarchy)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Running Clio clustering")
+    parser.add_argument("action", help="Action to perform (e.g., 'cluster', 'summarize')")
     parser.add_argument("--dataset", help="Override dataset name")
     parser.add_argument("--config", help="Path to config")
     args = parser.parse_args()
@@ -1175,5 +1230,12 @@ if __name__ == "__main__":
     print("Starting Clio clustering...")
     print(f"Dataset: {config['dataset_name']}")
     print(f"Hierarchy (number of examples at each level): {config['hierarchy']}\n")
-
-    asyncio.run(generate_clusters(**config))
+    if args.action == 'generate':
+        asyncio.run(generate_clusters(**config))
+        sys.argv = ["streamlit", "run", __file__, "--server.headless", "true"]
+        sys.exit(stcli.main())
+    elif args.action == 'evaluate':
+        asyncio.run(eval...(**config))
+    elif args.action == 'viz':
+        ...
+       

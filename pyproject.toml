@@ -14,7 +14,13 @@ dependencies = [
     "scikit-learn>=1.6.1",
     "langchain>=0.3.26",
     "pytest>=8.4.1",
+    "openevals>=0.1.0",
+    "jupyter>=1.1.1",
 ]
+[tool.setuptools.packages.find]
+include = ["open_clio*"]
+exclude = ["notebooks*", "tests*"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.4.1",

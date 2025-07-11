@@ -316,10 +316,10 @@ Do not elaborate beyond what you say in the tags. Ensure your summary and name h
 # Default partitions for evaluations
 
 # Evals
-partition_RELEVANCE = """
+PARTITION_RELEVANCE = """
 You are evaluating whether conversation fits its assigned partition.
-CONVERSATION SUMMARY: {{summary}}
-ASSIGNED partition: {{category}}
+CONVERSATION SUMMARY: {summary}
+ASSIGNED partition: {partition}
 PARTITIONS:
 {partitions}
 TASK: Does this conversation summary fit well within the assigned partition?
