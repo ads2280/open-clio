@@ -16,10 +16,16 @@ st.set_page_config(
 
 
 class ClusteringExplorer:
-    def __init__(self, config_path: str = ".data/config_customer50.json"):  # TODO
-        self.config = self.load_config(config_path)
+    def __init__(
+        self,
+        save_path: str = "./clustering_results",
+        dataset_name: str = None,
+        partitions: dict = None,
+    ):
+        self.save_path = save_path
+        self.dataset_name = dataset_name
+        self.partitions = partitions
         self.data = {}
-        self.save_path = ".data/clustering_results"
 
         # find available levels withoutusing config
         self.available_levels = []
@@ -100,7 +106,7 @@ class ClusteringExplorer:
         else:
             try:
                 return ast.literal_eval(str(member_str))
-            except:
+            except Exception:
                 return []
 
     def get_distinct_colors(self, n_colors: int) -> List[str]:
@@ -320,7 +326,7 @@ def display_parent_stack():
                 f"Level {step['level']}: {step['name']}"
             )  # added name, can remove
 
-        st.markdown(f"**Path:**\n" + "\n→ ".join(breadcrumbs))
+        st.markdown("**Path:**\n" + "\n→ ".join(breadcrumbs))
 
         # if st.button("Home"):
         #    st.session_state.navigation_path = []
@@ -358,7 +364,7 @@ def display_cluster_table(
             if (
                 "partition" in cluster_row
                 and pd.notna(cluster_row["partition"])
-                and explorer.config["partitions"] is not None
+                and explorer.partitions is not None
             ):
                 partition = cluster_row["partition"]
                 st.markdown(f"**🏷️ {partition}**")
@@ -368,7 +374,7 @@ def display_cluster_table(
                 st.metric("Sub-clusters", cluster_row.get("size", 0))
                 children = explorer.get_child_clusters(level, cluster_id)
                 if len(children) > 0:
-                    if st.button(f"Explore →", key=f"explore_{level}_{cluster_id}"):
+                    if st.button("Explore →", key=f"explore_{level}_{cluster_id}"):
                         st.session_state.navigation_path.append(
                             {
                                 "level": level,
@@ -379,7 +385,7 @@ def display_cluster_table(
                         st.session_state.view_mode = "clusters"
                         st.rerun()
                 else:
-                    if st.button(f"Examples →", key=f"examples_{level}_{cluster_id}"):
+                    if st.button("Examples →", key=f"examples_{level}_{cluster_id}"):
                         st.session_state.navigation_path.append(
                             {
                                 "level": level,
@@ -392,7 +398,7 @@ def display_cluster_table(
                         st.rerun()
             else:
                 st.metric("Size", cluster_row.get("size", 0))
-                if st.button(f"Examples →", key=f"examples_{level}_{cluster_id}"):
+                if st.button("Examples →", key=f"examples_{level}_{cluster_id}"):
                     st.session_state.navigation_path.append(
                         {
                             "level": level,
@@ -437,7 +443,8 @@ def display_examples(explorer: ClusteringExplorer, cluster_id):
                 st.text(example["full_example"])
 
 
-def main():
+def run_streamlit_viz():
+    """Run the viz app - gets config from environment variables set by main.py"""
     st.markdown("# Explore Clio Clusters")
 
     # Initialize session state
@@ -448,8 +455,15 @@ def main():
     if "color_assignments" not in st.session_state:
         st.session_state.color_assignments = {}
 
+    # Get config values from environment variables (set by main.py)
+    save_path = os.environ.get("CLIO_SAVE_PATH", "./clustering_results")
+    dataset_name = os.environ.get("CLIO_DATASET_NAME")
+    partitions = None
+    if "CLIO_PARTITIONS" in os.environ:
+        partitions = json.loads(os.environ["CLIO_PARTITIONS"])
+
     try:
-        explorer = ClusteringExplorer()
+        explorer = ClusteringExplorer(save_path, dataset_name, partitions)
         explorer.data = explorer.load_data()
         explorer.available_levels = explorer.detect_available_levels()
         explorer.max_level = max(explorer.available_levels)
@@ -470,11 +484,12 @@ def main():
 
     # Show dataset info with actual hierarchy display
     hierarchy_display = build_hierarchy_display(explorer)
-    st.markdown(f"**Dataset:** {explorer.config['dataset_name']}")
+    if explorer.dataset_name:
+        st.markdown(f"**Dataset:** {explorer.dataset_name}")
     st.markdown(f"**Hierarchy:** {hierarchy_display}")
-    if explorer.config["partitions"] is not None:
+    if explorer.partitions is not None:
         partitions_pretty_print = ", ".join(
-            [f"{k}" for k in explorer.config["partitions"].keys()]
+            [f"{k}" for k in explorer.partitions.keys()]
         )
     else:
         partitions_pretty_print = "None"
@@ -536,5 +551,4 @@ def main():
                     )
 
 
-if __name__ == "__main__":
-    main()
+run_streamlit_viz()

@@ -1,4 +1,3 @@
-import unittest
 import pytest
 import numpy as np
 from open_clio.generate import (

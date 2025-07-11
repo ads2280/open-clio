@@ -4,6 +4,8 @@ from typing import List
 import anthropic
 from openevals.llm import create_llm_as_judge
 import re
+import subprocess
+import sys
 from open_clio.prompts import (
     BEST_FIT,
     PARTITION_RELEVANCE,
@@ -11,23 +13,21 @@ from open_clio.prompts import (
     EXCLUSIVE_FIT,
     HIERARCHICAL_FIT,
 )
-from open_clio.generate import load_config
 
 anthropic_client = wrappers.wrap_anthropic(anthropic.Anthropic())
 client = Client()
-config = load_config()
-dataset_name = config["dataset_name"]
 
-combined_df = pd.read_csv("./.data/clustering_results/combined.csv")
-clusters_df = pd.read_csv(
-    "./.data/clustering_results/level_0_clusters.csv"
-)  # base clusters
-all_base_clusters = clusters_df["name"].tolist()
-all_base_clusters_text = "\n".join([f"- {cluster}" for cluster in all_base_clusters])
-total_base_clusters = len(all_base_clusters)
-partitions = combined_df["partition"].unique().tolist()
-
-examples = list(client.list_examples(dataset_name=dataset_name))
+# Globals that will be set by main function
+config = None
+dataset_name = None
+save_path = None
+combined_df = None
+clusters_df = None
+all_base_clusters = None
+all_base_clusters_text = None
+total_base_clusters = None
+partitions = None
+examples = None
 
 
 # Define evaluators
@@ -216,8 +216,35 @@ def dummy_target(inputs):
     return {}
 
 
-def main():
-    # check before updating the dataset
+def main(config_dict=None):
+    """
+    Main function to run the evaluation process.
+    """
+    global config, dataset_name, save_path, combined_df, clusters_df
+    global \
+        all_base_clusters, \
+        all_base_clusters_text, \
+        total_base_clusters, \
+        partitions, \
+        examples
+
+    # Set up global variables from config
+    config = config_dict
+    dataset_name = config["dataset_name"]
+    save_path = config.get("save_path", "./clustering_results")
+
+    # Load data files
+    combined_df = pd.read_csv(f"{save_path}/combined.csv")
+    clusters_df = pd.read_csv(f"{save_path}/level_0_clusters.csv")  # base clusters
+    all_base_clusters = clusters_df["name"].tolist()
+    all_base_clusters_text = "\n".join(
+        [f"- {cluster}" for cluster in all_base_clusters]
+    )
+    total_base_clusters = len(all_base_clusters)
+    partitions = combined_df["partition"].unique().tolist()
+    examples = list(client.list_examples(dataset_name=dataset_name))
+
+    # ask user before updating dataset
     while True:
         update_choice = (
             input(
@@ -229,16 +256,13 @@ def main():
         if update_choice == "y":
             print("Updating dataset...")
             # Import and run update.py
-            import subprocess
-            import sys
-
             try:
                 subprocess.run([sys.executable, "open_clio/update.py"], check=True)
                 print("Dataset updated successfully!")
             except subprocess.CalledProcessError as e:
                 print(f"Error updating dataset: {e}")
                 print(
-                    "Please run the clustering process first (python open_clio/generate.py)"
+                    "Please run the clustering process first (python open_clio/main.py generate)"
                 )
                 return
             break
