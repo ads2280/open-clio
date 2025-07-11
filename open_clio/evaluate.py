@@ -4,8 +4,6 @@ from typing import List
 import anthropic
 from openevals.llm import create_llm_as_judge
 import re
-import subprocess
-import sys
 from open_clio.prompts import (
     BEST_FIT,
     PARTITION_RELEVANCE,
@@ -13,6 +11,7 @@ from open_clio.prompts import (
     EXCLUSIVE_FIT,
     HIERARCHICAL_FIT,
 )
+from open_clio.update import update_dataset
 
 anthropic_client = wrappers.wrap_anthropic(anthropic.Anthropic())
 client = Client()
@@ -255,11 +254,10 @@ def main(config_dict=None):
         )
         if update_choice == "y":
             print("Updating dataset...")
-            # Import and run update.py
             try:
-                subprocess.run([sys.executable, "open_clio/update.py"], check=True)
+                update_dataset(config)
                 print("Dataset updated successfully!")
-            except subprocess.CalledProcessError as e:
+            except Exception as e:
                 print(f"Error updating dataset: {e}")
                 print(
                     "Please run the clustering process first (python open_clio/main.py generate)"
