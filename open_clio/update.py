@@ -4,8 +4,7 @@ from langsmith import Client
 
 def update_dataset(config):
     """
-    Update the dataset with clustering results so that we can run evals.
-
+    Updates the dataset with clustering results, before running evals.
     """
     client = Client()
     dataset_name = config["dataset_name"]
@@ -17,8 +16,14 @@ def update_dataset(config):
     combined_df['example_id'] = combined_df['example_id'].astype(str)
     combined_df.set_index('example_id', inplace=True)
 
-    examples = list(client.list_examples(dataset_name=dataset_name))
-    print(f"Found {len(examples)} examples from LangSmith")
+    # Respect sample limit from config if specified
+    sample_limit = config.get("sample")
+    if sample_limit is not None:
+        print(f"Limiting dataset update to {sample_limit} samples as specified in config")
+        examples = list(client.list_examples(dataset_name=dataset_name, limit=sample_limit))
+    else:
+        examples = list(client.list_examples(dataset_name=dataset_name))
+    print(f"Found {len(examples)} examples to update")
 
     updates = []
     for example in examples:

@@ -241,7 +241,14 @@ def main(config_dict=None):
     )
     total_base_clusters = len(all_base_clusters)
     partitions = combined_df["partition"].unique().tolist()
-    examples = list(client.list_examples(dataset_name=dataset_name))
+    
+    # Respect sample limit from config if specified
+    sample_limit = config.get("sample")
+    if sample_limit is not None:
+        print(f"Limiting evaluation to {sample_limit} samples as specified in config")
+        examples = list(client.list_examples(dataset_name=dataset_name, limit=sample_limit))
+    else:
+        examples = list(client.list_examples(dataset_name=dataset_name))
 
     # ask user before updating dataset
     while True:
@@ -274,7 +281,7 @@ def main(config_dict=None):
     print("Starting evaluation...")
     results = client.evaluate(
         dummy_target,
-        data=client.list_examples(dataset_name=dataset_name),
+        data=client.list_examples(dataset_name=dataset_name, limit=sample_limit),
         evaluators=prepare_evaluators(),
         summary_evaluators=[unique_n_summary_evaluator],
         experiment_prefix=f"cluster-evals",
