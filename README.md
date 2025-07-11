@@ -43,10 +43,7 @@ This will:
 - Launch a web interface to explore the results
 
 ### 4. Explore your results
-The tool automatically opens a web browser showing:
-- **Cluster overview**: See all your conversation groups
-- **Hierarchy view**: How detailed groups relate to broader categories
-- **Example explorer**: Click any cluster to see the actual conversations
+When clustering is complete, the command above automatically opens a web browser where you can navigate through your clusters, from high-level categories down to individual examples.
 
 You can also explore the output files in `save_path` for a quick overview of clusters:
 - `combined.csv`: All conversations with their cluster assignments
@@ -68,16 +65,16 @@ This example is pre-configured for a dataset of customer support conversations:
    
 ## How to:
 ### Define partitions upfront
-todo
+in progress
 
 ### Write a summary prompt
-todo
+in progress
 
 ### Select a hierarchy
-todo
+in progress
 
 ### Evaluate clusters
-todo
+in progress
 
 ## Reference
 
