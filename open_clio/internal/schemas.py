@@ -5,8 +5,13 @@ from typing_extensions import TypedDict, NotRequired
 class ExampleSummary(TypedDict):
     example_id: str | uuid.UUID
     summary: str
-    category: NotRequired[str]
+    partition: NotRequired[str]
 
+
+class RunSummary(TypedDict):
+    run_id: str | uuid.UUID
+    summary: str
+    partition: NotRequired[str]
 
 class ClusterInfo(TypedDict):
     name: str
@@ -14,5 +19,6 @@ class ClusterInfo(TypedDict):
     size: int
     summaries: list[str]
     example_ids: list[str | uuid.UUID]
-    category: str
+    partition: str
     id: uuid.UUID
+

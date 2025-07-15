@@ -7,10 +7,12 @@ from typing import Sequence
 import warnings
 import uuid
 from tqdm import tqdm
+from datetime import datetime
 
 from open_clio.internal.utils import gated_coro
 from open_clio.internal import schemas
 
+from langchain_core.prompts import ChatPromptTemplate
 from langchain.chat_models import init_chat_model
 from langchain.embeddings import init_embeddings
 import numpy as np
@@ -29,6 +31,7 @@ from open_clio.prompts import (
 from pydantic import BaseModel, Field
 from sklearn.cluster import KMeans
 from logging import getLogger
+from typing import Optional
 
 logger = getLogger(__file__)
 
@@ -43,101 +46,6 @@ llm = init_chat_model(
     configurable_fields=("temperature", "max_tokens", "model"),
 )
 
-
-async def summarize_example(
-    example: ls_schemas.Example, partitions: dict[str, str], summary_prompt: str
-) -> schemas.ExampleSummary | None:
-    """Use an LLM to generate a summary for a single example."""
-
-    class ResponseFormatter(BaseModel):
-        summary: str = Field(
-            description="A structured summary of the support conversation that captures the main task, request, or purpose. Focus on what the user is asking for, be specific about the subject matter or domain, and include context about the purpose or use case when relevant. Do NOT include phrases like 'User requested' or 'I understand' - start directly with the action/task."
-        )
-        partition: str = Field(
-            description=f"The main product partition this support request belongs to. Must be one of: {list(partitions.keys()) if partitions else ['Default']}"
-        )
-
-    # Create structured LLM here
-    structured_llm = llm.with_structured_output(ResponseFormatter)
-
-    conversation_text = str(example.inputs)
-
-    # If no partitions provided, all in same partition
-    if not partitions:
-        partitions_str = (
-            "- Default: All items in the dataset belong to this partition by default"
-        )
-    else:
-        partitions_str = "\n".join(f"- {k}: {v}" for k, v in partitions.items())
-
-    summary_prompt_w_partitions = SUMMARIZE_INSTR.format(
-        summary_prompt=summary_prompt, partitions=partitions_str
-    )
-
-    messages = [
-        {
-            "role": "user",
-            "content": f"The following is a conversation between an AI assistant and a user:\n\n{conversation_text}",
-        },
-        {
-            "role": "assistant",
-            "content": "I understand.",
-        },
-        {
-            "role": "user",
-            "content": f"{summary_prompt_w_partitions}",
-        },
-        {
-            "role": "assistant",
-            "content": "Sure, I'll analyze this conversation and provide a structured summary: <answer>",
-        },
-    ]
-
-    try:
-        response = await structured_llm.ainvoke(messages)
-
-        res = response.summary
-        partition = response.partition
-
-    except Exception as e:
-        logger.error(f"Error processing example {example.id}: {e}")
-        return None
-
-    return {"summary": res, "partition": partition, "example_id": example.id}
-
-
-async def summarize_all(
-    examples: list,
-    partitions: dict[str, str],
-    summary_prompt: str,
-    *,
-    max_concurrency: int,
-) -> list[schemas.ExampleSummary | None]:
-    """Generate summaries for all examples in the dataset."""
-    logger.info("Generating example summaries")
-    print("Generating summaries...")
-
-    semaphore = asyncio.Semaphore(max_concurrency)
-
-    tasks = [
-        gated_coro(summarize_example(example, partitions, summary_prompt), semaphore)
-        for example in examples
-    ]
-    summaries = []
-    with tqdm(total=len(tasks), desc="Generating summaries") as pbar:
-        for coro in asyncio.as_completed(tasks):
-            result = await coro
-            summaries.append(result)
-            pbar.update(1)
-
-    # summaries = await asyncio.gather(*tasks)
-    num_successful = sum(s is not None for s in summaries)
-    total_ex = len(examples)
-    logger.info(
-        f"Summaries successfully generated for {num_successful} out of {total_ex} examples"
-    )
-    print(f"Generated {num_successful}/{total_ex} summaries")
-    return summaries
 
 
 def perform_base_clustering(
@@ -614,7 +522,7 @@ def generate_cluster_descriptions(
                 "description": description,
                 "size": len(cluster_summaries),
                 "summaries": [s["summary"] for s in cluster_summary_infos],
-                "examples": [s["example_id"] for s in cluster_summary_infos],
+                "examples": [s.get("example_id") or s.get("run_id") for s in cluster_summary_infos],
                 "partition": partition,
                 "id": cluster_id,
             }
@@ -770,7 +678,7 @@ def cluster_partition_examples(
                 "id": uuid.uuid4(),
                 "size": len(summaries),
                 "summaries": [s["summary"] for s in summaries],
-                "examples": [s["example_id"] for s in summaries],
+                "examples": [s.get("example_id") or s.get("run_id") for s in summaries],
                 "partition": partition,
             }
         ]
@@ -920,7 +828,9 @@ def cluster_partition_examples(
         # find the corresponding summary
         example_summary = None
         for summary in summaries:
-            if summary["example_id"] == example.id:
+            # Handle both example_id (for examples) and run_id (for runs)
+            summary_id = summary.get("example_id") or summary.get("run_id")
+            if summary_id == example.id:
                 example_summary = summary
                 break
 
@@ -1143,17 +1053,74 @@ def validate_hierarchy(hierarchy: Sequence[int], n_examples: int) -> None:
             )
 
 
+async def load_from_dataset(dataset_name: str, partitions: dict = None, sample: int = None):
+    # load data
+    logger.info(f"Loading and summarizing examples from '{dataset_name}' dataset")
+    print(f"Loading dataset '{dataset_name}'...")
+    examples = list(client.list_examples(dataset_name=dataset_name, limit=sample if sample else None))
+    logger.info(f"Loaded {len(examples)} examples from dataset '{dataset_name}'")
+    # what are the main things we need? inputs, ids, noe the entire thing
+    return examples
+
+async def load_from_project(project_name: str, start_time: datetime = None, end_time: datetime = None, sampling_rate: float = None, sample: int = None):
+    query_params = {}
+    if start_time:
+        query_params["start_time"] = start_time
+
+    runs = list(client.list_runs(project_name=project_name, **query_params, limit=sample if sample else None))
+    logger.info(f"Loaded {len(runs)} runs from project '{project_name}'")
+
+    if sampling_rate and sampling_rate < 1.0:
+        import random
+        sample_size = int(len(runs) * sampling_rate)
+        runs = random.sample(runs, min(sample_size, len(runs)))
+        logger.info(f"Applied sampling rate {sampling_rate}, reduced to {len(runs)} runs")
+
+    return runs
+
+
 async def generate_clusters(
-    dataset_name: str,
     hierarchy: list,
     summary_prompt: str,  # TODO
     *,
-    save_path: str | None = None,
-    partitions: dict | None = None,
-    sample: int | None = None,
+    dataset_name: Optional[str] = None,
+    project_name: Optional[str] = None,
+    start_time: Optional[datetime] = None,
+    end_time: Optional[datetime] = None,
+    sampling_rate: Optional[float] = None,
+
+    save_path: Optional[str] = None,
+    partitions: Optional[dict] = None,
+    sample: Optional[int] = None,
     max_concurrency: int = DEFAULT_SUMMARIZATION_CONCURRENCY,
 ):
+    # Convert string datetime to datetime object if needed
+    if isinstance(start_time, str):
+        start_time = datetime.fromisoformat(start_time)
+    if isinstance(end_time, str):
+        end_time = datetime.fromisoformat(end_time)
+
     # partitions/top level clusters
+    if dataset_name and project_name:
+        raise ValueError("Cannot specify both dataset_name and project_name")
+    if not dataset_name and not project_name:
+        raise ValueError("Must specify either dataset_name or project_name")
+
+    if project_name:
+        if start_time and end_time and start_time >= end_time:
+            raise ValueError("start_time must be before end_time")
+        if sampling_rate and (sampling_rate < 1.0 or sampling_rate > 0.0):
+            raise ValueError("Sampling rate must be between 0.0 and 1.0")
+        if not end_time:
+            end_time = datetime.now()
+        if not start_time or not (sampling_rate or sample):
+            raise ValueError("Must specify both start_time and sampling_rate")
+        if sampling_rate:
+            raise ValueError("Sampling rate is not supported for project_name, use sample instead")
+        
+    if dataset_name and (start_time or sampling_rate):
+        raise ValueError("Time filtering parameters (start_time, end_time, sampling_rate) are not supported for dataset_name")
+    
     if partitions is not None:
         num_partitions = len(partitions.keys())
         num_top_level_clusters = hierarchy[-1]
@@ -1161,25 +1128,33 @@ async def generate_clusters(
             warnings.warn(
                 f"Number of partitions ({num_partitions}) does not match number of top-level clusters ({num_top_level_clusters})"
             )
-
-    # load data
-    logger.info(f"Loading and summarizing examples from '{dataset_name}' dataset")
-    print(f"Loading dataset '{dataset_name}'...")
-
-    examples = list(
-        client.list_examples(
-            dataset_name=dataset_name, limit=sample if sample else None
+ 
+    if dataset_name:
+        examples = await load_from_dataset(
+            dataset_name=dataset_name,
+            partitions=partitions,
+            sample=sample,
         )
-    )
-    total_examples = len(examples)
-    validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
+        total_examples = len(examples)
+        validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
+        summaries = await summarize_all(
+            partitions, summary_prompt, max_concurrency=max_concurrency, examples=examples
+        )
+    else:
+        runs = await load_from_project(
+            project_name=project_name,
+            start_time=start_time,
+            end_time=end_time,
+            sampling_rate=sampling_rate,
+            sample=sample
+        )
+        total_runs = len(runs)
+        validate_hierarchy(hierarchy, total_runs)  # Gives you an option to quit
+        summaries = await summarize_all(
+            partitions, summary_prompt, max_concurrency=max_concurrency, runs=runs
+        )
 
-    logger.info(f"Loaded {total_examples} total examples, generating summaries...")
-    print(f"Loaded {total_examples} examples, generating summaries...")
-
-    summaries = await summarize_all(
-        examples, partitions, summary_prompt, max_concurrency=max_concurrency
-    )
+    # ideally below here all stays the same...
     summaries_by_partition = defaultdict(list)
     # Prepare to process examples by partition
     for summary in summaries:
@@ -1196,8 +1171,16 @@ async def generate_clusters(
     combined_hierarchy = {"partitions": {}}
 
     for partition, cat_summaries in summaries_by_partition.items():
-        example_ids = [s["example_id"] for s in cat_summaries]
-        partition_examples = [e for e in examples if e.id in example_ids]
+        if dataset_name:
+            example_ids = [s["example_id"] for s in cat_summaries]
+            partition_examples = [e for e in examples if e.id in example_ids]
+            total_items = total_examples
+        else:
+            run_ids = [s["run_id"] for s in cat_summaries]
+            partition_runs = [r for r in runs if r.id in run_ids]
+            partition_examples = partition_runs  # Use runs as examples for clustering
+            total_items = total_runs
+            
         logger.info(f"Clustering examples that belong to partition '{partition}'")
         print(f"\nProcessing partition '{partition}'...")
 
@@ -1206,7 +1189,7 @@ async def generate_clusters(
                 partition,
                 partition_examples,
                 cat_summaries,
-                total_examples,
+                total_items,
                 hierarchy,
             )
         except Exception as e:
@@ -1224,3 +1207,113 @@ async def generate_clusters(
     print("\nClustering complete!")
     # Save results to csvs
     save_results(all_updates, combined_hierarchy, save_path)
+
+
+async def summarize_each(
+    partitions: dict[str, str], summary_prompt: str, example: ls_schemas.Example = None, run: ls_schemas.Run = None
+) -> schemas.ExampleSummary | schemas.RunSummary | None:
+    """Use an LLM to generate a summary for a single example."""
+
+    class ResponseFormatter(BaseModel):
+        summary: str = Field(
+            description="A structured summary of the support conversation that captures the main task, request, or purpose. Focus on what the user is asking for, be specific about the subject matter or domain, and include context about the purpose or use case when relevant. Do NOT include phrases like 'User requested' or 'I understand' - start directly with the action/task."
+        )
+        partition: str = Field(
+            description=f"The main product partition this support request belongs to. Must be one of: {list(partitions.keys()) if partitions else ['Default']}"
+        )
+
+    # If no partitions provided, all in same partition
+    if not partitions:
+        partitions_str = (
+            "- Default: All items in the dataset belong to this partition by default"
+        )
+    else:
+        partitions_str = "\n".join(f"- {k}: {v}" for k, v in partitions.items())
+
+    # prev: conversation_text = str(example.inputs)
+    # now: sth like  """ Summarize this run: {{inputs.messages.0.content}} {{outputs.messages.-1.content}}"""
+
+    summary_prompt_w_partitions = SUMMARIZE_INSTR.format(
+        summary_prompt=summary_prompt, partitions=partitions_str
+    )
+
+    summary_prompt_w_partitions = ChatPromptTemplate([
+            {"role": "system", "content": "Summarize this example:"},
+            {"role": "user", "content": summary_prompt_w_partitions}
+        ], 
+        template_format="mustache"
+    )
+    
+    print(f"\n\nSUMMARY PROMPT: {summary_prompt_w_partitions}")
+    
+
+    chain = summary_prompt_w_partitions | llm.with_structured_output(ResponseFormatter, include_raw=True)
+
+    if example:
+        #print(f"EXAMPLE: {example.dict()}")
+        result = await chain.ainvoke({"example": example.dict()})
+        if result["parsed"]:
+            return {
+                "summary": result["parsed"].summary,
+                "partition": result["parsed"].partition,
+                "example_id": example.id 
+            }
+        else:
+            # print(f"ERROR: {result['exception']}")
+            return None
+    elif run:
+        print(f"RUN: {run.dict()}")
+        result = await chain.ainvoke({"run": run.dict()})
+        if result["parsed"]:
+            return {
+                "summary": result["parsed"].summary,
+                "partition": result["parsed"].partition,
+                "run_id": run.id
+            }
+        else:
+            return None
+    
+    # now it doesn't work if you don't enter a mustache template - add warning?
+
+async def summarize_all(
+    partitions: dict[str, str],
+    summary_prompt: str,
+    *,
+    examples: Optional[list] = None,
+    runs: Optional[list] = None,
+    max_concurrency: int = DEFAULT_SUMMARIZATION_CONCURRENCY,
+) -> list[schemas.ExampleSummary | schemas.RunSummary | None]:
+    """Generate summaries for all examples in the dataset."""
+    logger.info("Generating example summaries")
+    print("Generating summaries...")
+
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    if examples:
+        total_examples = len(examples)
+        tasks = [
+            gated_coro(summarize_each(partitions, summary_prompt, example=example), semaphore)
+            for example in examples
+        ]
+    elif runs:
+        total_runs = len(runs)
+        tasks = [
+            gated_coro(summarize_each(partitions, summary_prompt, run=run), semaphore)
+            for run in runs
+        ]
+
+    summaries = []
+    with tqdm(total=len(tasks), desc="Generating summaries") as pbar:
+        for coro in asyncio.as_completed(tasks):
+            result = await coro
+            summaries.append(result)
+            pbar.update(1)
+
+    # summaries = await asyncio.gather(*tasks)
+    num_successful = sum(s is not None for s in summaries)
+    logger.info(
+        f"Summaries successfully generated for {num_successful} out of {total_examples} examples" if examples else f"Summaries successfully generated for {num_successful} out of {total_runs} runs"
+    )
+    print(f"Generated {num_successful}/{total_examples if examples else total_runs} summaries")
+    return summaries
+
