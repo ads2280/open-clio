@@ -52,18 +52,20 @@ def run_evaluate(config):
 
 def run_extend(config):
     print("Starting cluster extension pipeline...")
-    
+
     save_path = config.get("save_path", "./clustering_results")
     dataset_name = config.get("dataset_name")
-    sample = config.get("sample", None)  
-    
+    sample = config.get("sample", None)
+
     print(f"Loading existing hierarchy from: {save_path}")
     print(f"Loading new examples from dataset: {dataset_name}")
     print(f"Examples limit: {sample}")
-    
+
     asyncio.run(extend_main(dataset_name, save_path, sample))
-    
-    print(f"\n\nExtension complete! Run open-clio viz to explore the extended clusters, or see updated csv files in the {save_path} directory")
+
+    print(
+        f"\n\nExtension complete! Run open-clio viz to explore the extended clusters, or see updated csv files in the {save_path} directory"
+    )
 
 
 def main():

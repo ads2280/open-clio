@@ -355,7 +355,9 @@ def deduplicate_proposed_clusters(proposed, target_clusters):
     deduplicating_user_prompt = DEDUPLICATE_CLUSTERS_INSTR.format(
         cluster_text=cluster_text,
         target_clusters=target_clusters,
-        clusters_per_neighborhood=max(1, target_clusters // 2),  # Approximate, but at least 1
+        clusters_per_neighborhood=max(
+            1, target_clusters // 2
+        ),  # Approximate, but at least 1
         criteria=CRITERIA,
         min_cpn=max(1, int(0.5 * target_clusters)),
         max_cpn=max(2, int(1.5 * target_clusters)),
