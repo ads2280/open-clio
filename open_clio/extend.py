@@ -290,7 +290,7 @@ async def assign_higher_levels(level_0_assignment, partition_clusters, partition
 # before extend_results - check assignment logic works
 def extend_results(new_assignments, save_path):
     """
-    Creates updated_combined.csv and updated_level_{x}_clusters.csv files
+    Updates combined.csv and level_{x}_clusters.csv files
     """
     #append not overwrite
     print(f"Extending results with {len(new_assignments)} new assignments, in {save_path}")
@@ -362,7 +362,7 @@ def extend_results(new_assignments, save_path):
 
     # Combine, save
     updated_combined = pd.concat([prev_combined, new_df], ignore_index=True)
-    updated_combined.to_csv(os.path.join(save_path, "updated_combined.csv"), index=False)
+    updated_combined.to_csv(os.path.join(save_path, "combined.csv"), index=False)
     print(f"Updated combined.csv: added {len(new_rows)} new rows, total {len(updated_combined)} rows")
 
     # Update cluster sizes
@@ -388,7 +388,7 @@ def update_cluster_files(cluster_updates, save_path):
     for level, cluster_counts in updates_by_level.items():
         # read from original level file
         original_level_file = os.path.join(save_path, f"level_{level}_clusters.csv")
-        updated_level_file = os.path.join(save_path, f"updated_level_{level}_clusters.csv")
+        updated_level_file = os.path.join(save_path, f"level_{level}_clusters.csv")
 
         if not os.path.exists(original_level_file):
             warnings.warn(f"Level {level} cluster file not found: {original_level_file}, cannot update {len(cluster_counts)} level {level} clusters")
