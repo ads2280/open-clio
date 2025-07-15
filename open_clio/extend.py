@@ -7,6 +7,7 @@ from logging import getLogger
 import warnings
 import asyncio
 from langsmith import Client
+from open_clio.prompts import PARTITION_AND_SUMMARIZE, BASE_CLUSTER
 
 logger = getLogger(__file__)
 
@@ -17,34 +18,64 @@ llm = init_chat_model(
 )
 
 # make it configurable later - especially limit param for new ex to cluster
-# and add orchestration to main, think abt overall flow (specifically passing in new examples vs if example.id not in combined.csv, process example)
-# also process >1 example at a time
-# wonder how similar (in accuracy) it is to doing entire clustering again. this could maybe give some indication of how well example fit base cluster it was put in..
-def load_examples(dataset_name):
+
+def load_examples(dataset_name, limit=None):
     client = Client()
-    examples = list(client.list_examples(dataset_name=dataset_name, limit=2))
+    examples = list(client.list_examples(dataset_name=dataset_name, limit=limit))
     print(f"Loaded {len(examples)} examples from {dataset_name}")
     return examples
 
-# process more examples at a time later
-async def process_single_examples(example, existing_data, expected_partition="Default"): # how to pass in existing data?
-
-    level_0_result = await summarize_and_assign_level0(example, existing_data, {}, expected_partition) # pass in partitions?
+async def process_single_examples(example, existing_data, expected_partition=None):
+    # Choose partition and summarise each ex
+    partition_result = await determine_partition_and_summarize(example, existing_data)
+    if not partition_result:
+        warnings.warn(f"Failed to determine partition for {example.id}")
+        return None
+    
+    partition = partition_result['partition']
+    summary = partition_result['summary']
+    
+    # Assign to base cluster within that partition
+    level_0_result = await assign_to_base_cluster(example, existing_data, partition, summary)
     if not level_0_result:
         warnings.warn(f"Failed to assign level 0 for {example.id}")
         return None
     
-    full_assignments = await assign_higher_levels(level_0_result, existing_data, expected_partition)
+    combined_result = {
+        'summary': summary,
+        'partition': partition,
+        'level_0_cluster_id': level_0_result['level_0_cluster_id'],
+        'level_0_cluster_name': level_0_result['level_0_cluster_name']
+    }
+    
+    # Find higher levels using level 0 assignment
+    full_assignments = await assign_higher_levels(combined_result, existing_data, partition)
+
+    # Fmt full_example (from generate.py)
+    full_example = ""
+    if example.inputs:
+        if isinstance(example.inputs, dict):
+            input_parts = []
+            for key, value in example.inputs.items():
+                if isinstance(value, str) and value.strip():
+                    input_parts.append(f"{key}: {value}")
+            full_example = "\n".join(input_parts)
+        elif isinstance(example.inputs, str):
+            full_example = example.inputs
+        else:
+            full_example = str(example.inputs)
+    else:
+        full_example = summary  # fallback
 
     # Fmt for extend_results
     assignment_result = {
         'example_id': example.id,
-        'summary': level_0_result['summary'],
-        'partition': level_0_result['partition'],
-        'full_example': str(example.inputs),
+        'summary': summary,
+        'partition': partition,
+        'full_example': full_example,
         'assignments': full_assignments
     }
-    print(f"Sucessfully assigned example {example.id} (level0: {level_0_result['level_0_cluster_name']}, level1+: see csvs)")
+    print(f"Successfully assigned example {example.id} (partition: {partition}, level0: {level_0_result['level_0_cluster_name']}, level1+: see csvs)")
     return assignment_result
 
 def load_hierarchy(save_path):
@@ -65,12 +96,15 @@ def load_hierarchy(save_path):
     # Get partitions
     partitions = combined_df["partition"].unique().tolist()
     
-    # Get max level for each partition
+    # Calculate max_levels and cluster_names for this specific partition
     max_levels_by_partition = {}
+    cluster_names_by_partition = {}
+    
     for partition in partitions:
         partition_examples = combined_df[combined_df["partition"] == partition]
-        max_level = 0
         
+        # max level
+        max_level = 0
         level_columns = [col for col in partition_examples.columns if col.startswith('level_') and col.endswith('_id')]
         for col in level_columns:
             if partition_examples[col].notna().any():
@@ -78,21 +112,15 @@ def load_hierarchy(save_path):
                 max_level = max(max_level, level_num)
         
         max_levels_by_partition[partition] = max_level
-    
-    # Simple cluster names by partition and level
-    cluster_names_by_partition = {}
-    
-    for partition in partitions:
-        cluster_names_by_partition[partition] = {}
-        max_level = max_levels_by_partition[partition]
         
+        # cluster names
+        cluster_names_by_partition[partition] = {}
         for level in range(max_level + 1):
             level_key = f'level_{level}'
             
             if level_key not in level_clusters:
                 continue
             
-            # Get cluster names for this partition and level
             clusters_df = level_clusters[level_key]
             partition_clusters = clusters_df[clusters_df['partition'] == partition]
             
@@ -110,77 +138,96 @@ def load_hierarchy(save_path):
         'cluster_names_by_partition': cluster_names_by_partition  # just ID + name per partition/level
     }
 
-# tested up until here
-# can have way more async because clusters already defined
-# also - just use cluster ids everywhere? and then search for corresponding names, instead of passing around both?
-# need to load new_example then put these in a loop
-
-async def summarize_and_assign_level0(new_example, partition_clusters, partitions, expected_partition="Default"):
-    level_0_clusters = partition_clusters['cluster_names_by_partition'][expected_partition]['level_0']
-    cluster_options = ""
-    for i, cluster in enumerate(level_0_clusters):
-        cluster_options += f"{i+1}. {cluster['name']}\n"
+async def determine_partition_and_summarize(example, existing_data, partitions=None):
+    """Determine which partition the example belongs to and generate a summary."""
     
-    # move to prompts.py
-    # use summary_prompt_w_partitions / generally make this better prompt
-    prompt = f"""
-    Please analyze this example and:
-    1. Provide a concise summary (1-2 sentences)
-    2. Confirm the partition (should be "{expected_partition}")
-    3. Assign it to the most appropriate level 0 cluster
+    if partitions is None:
+        available_partitions = existing_data['partitions']
+    else:
+        available_partitions = list(partitions.keys()) if isinstance(partitions, dict) else partitions
+    prompt = PARTITION_AND_SUMMARIZE.format(
+            available_partitions=available_partitions,
+            example=example
+        )
 
-    Available level 0 clusters:
-    {cluster_options}
-
-    Example to analyze:
-    {new_example}
-
-    Please respond in this format:
-    SUMMARY: [your summary]
-    PARTITION: [partition name]
-    CLUSTER_ID: [exact uid of the cluster]
-    CLUSTER_NAME: [exact cluster name]
-
-"""
-    class ResponseFormatter(BaseModel):
+    class PartitionResponseFormatter(BaseModel):
         summary: str = Field(
             description="A structured summary of the support conversation that captures the main task, request, or purpose. Focus on what the user is asking for, be specific about the subject matter or domain, and include context about the purpose or use case when relevant. Do NOT include phrases like 'User requested' or 'I understand' - start directly with the action/task."
         )
         partition: str = Field(
-            description=f"The main product partition this support request belongs to. Must be one of: {list(partitions.keys()) if partitions else ['Default']}"
-        )
-        level_0_cluster_name: str = Field(
-            description=f"The exact name of the level 0 cluster that the example best belongs to. Must be one of: {list(partition_clusters['cluster_names_by_partition'][expected_partition]['level_0'])}"
-        )
-        level_0_cluster_id: str = Field(
-            description=f"The exact uuid of the level 0 cluster that the example belongs to."
+            description=f"The partition this example belongs to. Must be one of: {available_partitions}"
         )
     
-    structured_llm = llm.with_structured_output(ResponseFormatter)
-    new_example_text = str(new_example.inputs)
+    structured_llm = llm.with_structured_output(PartitionResponseFormatter)
+    
+    try:
+
+        response = await structured_llm.ainvoke(prompt)
+        
+        summary = response.summary
+        partition = response.partition
+        
+        # make sure it's a valid partition
+        if partition not in available_partitions:
+            logger.error(f"Invalid partition '{partition}' returned for example {example.id}. Available: {available_partitions}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error determining partition for example {example.id}: {e}")
+        return None
+    
+    return {
+        'summary': summary,
+        'partition': partition
+    }
+
+async def assign_to_base_cluster(example, existing_data, partition, summary):
+    """Assign example to a base cluster within the specified partition."""
+    
+    level_0_clusters = existing_data['cluster_names_by_partition'][partition]['level_0']
+    cluster_options = ""
+    for i, cluster in enumerate(level_0_clusters):
+        cluster_options += f"{i+1}. {cluster['name']}\n"
+    
+    prompt = BASE_CLUSTER.format(
+        summary=summary,
+        partition=partition,
+        cluster_options=cluster_options,
+        example=example
+    )
+    class ClusterResponseFormatter(BaseModel):
+        level_0_cluster_name: str = Field(
+            description=f"The exact name of the level 0 cluster that the example best belongs to. Must be one of: {[c['name'] for c in level_0_clusters]}"
+        )
+    
+    structured_llm = llm.with_structured_output(ClusterResponseFormatter)
+    example_text = str(example.inputs)
     
     try:
         response = await structured_llm.ainvoke(prompt)
-
-        summary = response.summary
-        partition = response.partition # check its the same as expected
-        level_0_cluster_id = response.level_0_cluster_id
         level_0_cluster_name = response.level_0_cluster_name
+        
+        # Look up the UUID from the cluster name 
+        level_0_cluster_id = None
+        for cluster in level_0_clusters:
+            if cluster['name'] == level_0_cluster_name:
+                level_0_cluster_id = cluster['cluster_id']
+                print(f"Assigned example {example.id} to level 0 cluster {level_0_cluster_name} (ID: {level_0_cluster_id})")
+                break
+        
+        if level_0_cluster_id is None:
+            logger.error(f"Could not find cluster ID for name '{level_0_cluster_name}' in partition '{partition}'")
+            return None
+            
     except Exception as e:
-        logger.error(f"Error processing example {new_example.id}: {e}")
+        logger.error(f"Error assigning to base cluster for example {example.id}: {e}")
         return None
 
-    response = {
-        'summary': summary,
-        'partition': partition,
+    return {
         'level_0_cluster_id': level_0_cluster_id,
         'level_0_cluster_name': level_0_cluster_name
     }
-    return response
 
-# do this on the basis of clusters or examples/summaries?
-# TODO - don't even really need an LLM for this, just a lookup table
-# l2 -> l1 -> l0 vs l0 -> done
 async def assign_higher_levels(level_0_assignment, partition_clusters, partition_name="Default"):
 
     assignments = {
@@ -222,7 +269,7 @@ async def assign_higher_levels(level_0_assignment, partition_clusters, partition
 
         assert len(valid_clusters) == 1, f"Multiple level {level_key} clusters found for {current_assignment_id}: {valid_clusters}"
         chosen_cluster = valid_clusters[0]
-        print(f"Assigning level {level_key} cluster {chosen_cluster['name']} to {current_assignment_id} (only option)")
+        print(f"Assigning level {level} cluster {chosen_cluster['name']} to {current_assignment_id} (only option)")
         
         assignments[level_key] = {
             'cluster_id': chosen_cluster['cluster_id'],
@@ -343,32 +390,66 @@ def update_cluster_files(cluster_updates, save_path):
             mask = df['cluster_id'] == cluster_id
 
             if mask.any():  # update size
-                current_size = df.loc[mask, 'size'].iloc[0]
-                new_size = current_size + additional_count
-                df.loc[mask, 'size'] = new_size
-                print(f"  Updated level_{level} cluster {cluster_id}: {current_size} -> {new_size}")  # remove later
+                if level == 0:
+                    # For level 0 clusters: size = number of examples
+                    current_size = df.loc[mask, 'size'].iloc[0]
+                    new_size = current_size + additional_count
+                    df.loc[mask, 'size'] = new_size
+                    print(f"  Updated level_{level} cluster {cluster_id}: {current_size} -> {new_size} examples")
+                else:
+                    # For higher-level clusters: 
+                    # - size = number of sub-clusters (doesn't change when adding examples)
+                    # - total_size = number of examples (should increase)
+                    if 'total_size' in df.columns:
+                        current_total_size = df.loc[mask, 'total_size'].iloc[0]
+                        new_total_size = current_total_size + additional_count
+                        df.loc[mask, 'total_size'] = new_total_size
+                        print(f"  Updated level_{level} cluster {cluster_id}: total_size {current_total_size} -> {new_total_size} examples")
+                    else:
+                        warnings.warn(f"Level {level} cluster file missing 'total_size' column")
             else:
                 warnings.warn(f"Cluster {cluster_id} not found in level_{level}_clusters.csv")
 
         df.to_csv(level_file, index=False)
 
-async def test():
-    existing_data = load_hierarchy("./example_results") 
-    new_examples = load_examples("ds-crazy-compulsion-52") # arbitrary new ds
+# next
+# process >1 example at a time
+# wonder how similar (in accuracy) it is to doing entire clustering again. this could maybe give some indication of how well example fit base cluster it was put in...
+# prompts are very basic, can improve
+
+async def main(save_path="./clustering_results", new_dataset_name=None, examples_limit=2):
+    """Main orchestration function for extending existing clustering results."""
+    if not new_dataset_name:
+        print("Error: new_dataset_name is required")
+        return
+    
+    existing_data = load_hierarchy(save_path) 
+    new_examples = load_examples(new_dataset_name, limit=examples_limit)
+    
+    existing_eids = set(existing_data['combined_df']['example_id'].tolist())
+    print(f"Found {len(existing_eids)} existing examples in combined.csv")
+    
     all = []
+    processed_count = 0
+    skipped_count = 0
+    
+    # only process new examples that are not already clustered
     for example in new_examples:
+        if str(example.id) in existing_eids:
+            skipped_count += 1
+            continue
+            
         assignment = await process_single_examples(example, existing_data)
         if assignment:
             all.append(assignment)  # if 1 ex fails, the others still get added
+        processed_count += 1
 
+    print(f"Processed {processed_count} new examples, skipped {skipped_count} previously clustered examples")
+    
     if all:
-        extend_results(all, "./example_results")  #what is example_results? if save path, need to edit
+        extend_results(all, save_path)
         print(f"{len(all)} new assignments added")
     else:
         print("No new assignments to add")
 
-asyncio.run(test())
-    
-
-    
-
+#size vs total size? size = no of sub clusters, total size = no of examples
