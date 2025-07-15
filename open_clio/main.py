@@ -5,6 +5,7 @@ import json
 import os
 import streamlit.web.cli as stcli
 from open_clio.generate import generate_clusters
+from open_clio.extend import main as extend_main
 
 
 def load_config(config_path=None):
@@ -49,6 +50,22 @@ def run_evaluate(config):
     evaluate_main(config)
 
 
+def run_extend(config):
+    print("Starting cluster extension pipeline...")
+    
+    save_path = config.get("save_path", "./clustering_results")
+    dataset_name = config.get("dataset_name")
+    sample = config.get("sample", None)  
+    
+    print(f"Loading existing hierarchy from: {save_path}")
+    print(f"Loading new examples from dataset: {dataset_name}")
+    print(f"Examples limit: {sample}")
+    
+    asyncio.run(extend_main(dataset_name, save_path, sample))
+    
+    print(f"\n\nExtension complete! Run open-clio viz to explore the extended clusters, or see updated csv files in the {save_path} directory")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="OpenCLIO - Open-source implementation of CLIO clustering and visualization tool",
@@ -57,6 +74,7 @@ examples:
   open-clio generate --config config.json    # generate clustering and launch visualization
   open-clio viz --config config.json         # launch visualization only
   open-clio evaluate --config config.json    # run evaluation on generated clusters
+  open-clio extend --config config.json      # extend existing clusters with new examples
 
 For more information, see the README or visit the project repository.
         """,
@@ -65,8 +83,8 @@ For more information, see the README or visit the project repository.
     parser.add_argument(
         "action",
         nargs="?",
-        choices=["generate", "evaluate", "viz"],
-        help="Action to perform (generate: clustering + viz, evaluate: run metrics, viz: visualization only)",
+        choices=["generate", "evaluate", "viz", "extend"],
+        help="Action to perform (generate: clustering + viz, evaluate: run metrics, viz: visualization only, extend: add new examples to existing clusters)",
     )
     parser.add_argument(
         "--config",
@@ -89,6 +107,8 @@ For more information, see the README or visit the project repository.
         run_evaluate(config)
     elif args.action == "viz":
         run_viz(config)
+    elif args.action == "extend":
+        run_extend(config)
     else:
         print(f"Invalid action: {args.action}")
         exit(1)
