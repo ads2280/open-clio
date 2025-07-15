@@ -96,7 +96,6 @@ async def summarize_example(
     try:
         response = await structured_llm.ainvoke(messages)
 
-        # With structured output, response has summary and partition fields
         res = response.summary
         partition = response.partition
 
@@ -271,8 +270,8 @@ def propose_clusters_from_neighborhoods(
             cluster_list_text=cluster_list_text,
             clusters_per_neighborhood=clusters_per_neighborhood,
             criteria=CRITERIA,
-            min_cpn=int(0.5 * clusters_per_neighborhood),
-            max_cpn=int(1.5 * clusters_per_neighborhood),
+            min_cpn=max(1, int(0.5 * clusters_per_neighborhood)),
+            max_cpn=max(2, int(1.5 * clusters_per_neighborhood)),
         )
         proposing_assistant_prompt = """ I understand. I'll evaluate the clusters and provide higher-level
 cluster names that could encompass multiple sub-clusters within the LangChain ecosystem. 
@@ -356,10 +355,10 @@ def deduplicate_proposed_clusters(proposed, target_clusters):
     deduplicating_user_prompt = DEDUPLICATE_CLUSTERS_INSTR.format(
         cluster_text=cluster_text,
         target_clusters=target_clusters,
-        clusters_per_neighborhood=target_clusters // 2,  # Approximate
+        clusters_per_neighborhood=max(1, target_clusters // 2),  # Approximate, but at least 1
         criteria=CRITERIA,
-        min_cpn=int(0.5 * target_clusters),
-        max_cpn=int(1.5 * target_clusters),
+        min_cpn=max(1, int(0.5 * target_clusters)),
+        max_cpn=max(2, int(1.5 * target_clusters)),
     )
 
     deduplicating_assistant_prompt = f"""
@@ -749,9 +748,14 @@ def cluster_partition_examples(
     logger.info(
         f"Partition '{partition}': {len(examples)} examples, target base clusters: {partition_k}, target top clusters: {partition_ktop}"
     )
-    print(
-        f"Partition '{partition}': {len(examples)} examples → {partition_k} base clusters → {partition_ktop} top clusters"
-    )
+    if len(hierarchy) == 1:
+        print(
+            f"Partition '{partition}': {len(examples)} examples → {partition_k} base clusters"
+        )
+    else:
+        print(
+            f"Partition '{partition}': {len(examples)} examples → {partition_k} base clusters → {partition_ktop} top clusters"
+        )
 
     # perform base clustering
     logger.info("Generating base clusters...")
@@ -787,7 +791,10 @@ def cluster_partition_examples(
     }
     levels = len(hierarchy)
     # Always use geometric progression for consistent behavior
-    if levels == 2:
+    if levels == 1:
+        # Single level hierarchy - no higher levels to build
+        scaled_level_sizes = []
+    elif levels == 2:
         scaled_level_sizes = [partition_ktop]
     else:
         ratio = (partition_ktop / n_base) ** (1 / (levels - 1))

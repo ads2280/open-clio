@@ -17,11 +17,10 @@ llm = init_chat_model(
     max_tokens = 500
 )
 
-# make it configurable later - especially limit param for new ex to cluster
 
-def load_examples(dataset_name, limit=None):
+def load_examples(dataset_name, sample=None):
     client = Client()
-    examples = list(client.list_examples(dataset_name=dataset_name, limit=limit))
+    examples = list(client.list_examples(dataset_name=dataset_name, limit=sample))
     print(f"Loaded {len(examples)} examples from {dataset_name}")
     return examples
 
@@ -79,7 +78,14 @@ async def process_single_examples(example, existing_data, expected_partition=Non
     return assignment_result
 
 def load_hierarchy(save_path):
-    combined_df = pd.read_csv(f"{save_path}/combined.csv")
+    combined_csv_path = f"{save_path}/combined.csv"
+    
+    if not os.path.exists(combined_csv_path):
+        print(f"Error: Cluster data not found at {combined_csv_path}")
+        print("Please run generate.py first to create the initial clusters before extending.")
+        exit(1)
+    
+    combined_df = pd.read_csv(combined_csv_path)
     
     level_clusters = {}
     pattern = os.path.join(save_path, "level_*_clusters.csv")
@@ -283,6 +289,9 @@ async def assign_higher_levels(level_0_assignment, partition_clusters, partition
 
 # before extend_results - check assignment logic works
 def extend_results(new_assignments, save_path):
+    """
+    Creates updated_combined.csv and updated_level_{x}_clusters.csv files
+    """
     #append not overwrite
     print(f"Extending results with {len(new_assignments)} new assignments, in {save_path}")
     prev_combined = pd.read_csv(os.path.join(save_path, "combined.csv"))
@@ -314,7 +323,7 @@ def extend_results(new_assignments, save_path):
             row_data['base_cluster_id'] = assignments_dict['level_0']['cluster_id']
             row_data['base_cluster_name'] = assignments_dict['level_0']['cluster_name']
 
-            # Track cluster size update - why?
+            # Track cluster size update
             cluster_id = assignments_dict['level_0']['cluster_id']
             if cluster_id not in cluster_updates:
                 cluster_updates[cluster_id] = {'level': 0, 'count': 0}
@@ -377,13 +386,15 @@ def update_cluster_files(cluster_updates, save_path):
         updates_by_level[level][cluster_id] = count
 
     for level, cluster_counts in updates_by_level.items():
-        level_file = os.path.join(save_path, f"level_{level}_clusters.csv")
+        # read from original level file
+        original_level_file = os.path.join(save_path, f"level_{level}_clusters.csv")
+        updated_level_file = os.path.join(save_path, f"updated_level_{level}_clusters.csv")
 
-        if not os.path.exists(level_file):
-            warnings.warn(f"Level {level} cluster file not found: {level_file}, cannot update {len(cluster_counts)} level {level} clusters")
+        if not os.path.exists(original_level_file):
+            warnings.warn(f"Level {level} cluster file not found: {original_level_file}, cannot update {len(cluster_counts)} level {level} clusters")
             continue
 
-        df = pd.read_csv(level_file)
+        df = pd.read_csv(original_level_file)
         
         for cluster_id, additional_count in cluster_counts.items():
             # find the row
@@ -395,7 +406,7 @@ def update_cluster_files(cluster_updates, save_path):
                     current_size = df.loc[mask, 'size'].iloc[0]
                     new_size = current_size + additional_count
                     df.loc[mask, 'size'] = new_size
-                    print(f"  Updated level_{level} cluster {cluster_id}: {current_size} -> {new_size} examples")
+                    print(f"  Updated Level {level} cluster {cluster_id}: {current_size} -> {new_size} examples")
                 else:
                     # For higher-level clusters: 
                     # - size = number of sub-clusters (doesn't change when adding examples)
@@ -410,21 +421,14 @@ def update_cluster_files(cluster_updates, save_path):
             else:
                 warnings.warn(f"Cluster {cluster_id} not found in level_{level}_clusters.csv")
 
-        df.to_csv(level_file, index=False)
+        # Save to the updated file
+        df.to_csv(updated_level_file, index=False)
 
-# next
-# process >1 example at a time
-# wonder how similar (in accuracy) it is to doing entire clustering again. this could maybe give some indication of how well example fit base cluster it was put in...
-# prompts are very basic, can improve
-
-async def main(save_path="./clustering_results", new_dataset_name=None, examples_limit=2):
+async def main(dataset_name, save_path="./clustering_results", sample=None):
     """Main orchestration function for extending existing clustering results."""
-    if not new_dataset_name:
-        print("Error: new_dataset_name is required")
-        return
     
     existing_data = load_hierarchy(save_path) 
-    new_examples = load_examples(new_dataset_name, limit=examples_limit)
+    new_examples = load_examples(dataset_name, sample)
     
     existing_eids = set(existing_data['combined_df']['example_id'].tolist())
     print(f"Found {len(existing_eids)} existing examples in combined.csv")
@@ -452,4 +456,9 @@ async def main(save_path="./clustering_results", new_dataset_name=None, examples
     else:
         print("No new assignments to add")
 
-#size vs total size? size = no of sub clusters, total size = no of examples
+#size vs total size? size = no of sub clusters, total size = no of examples (fixed)
+
+# next
+# process >1 example at a time
+# wonder how similar (in accuracy) it is to doing entire clustering again. this could maybe give some indication of how well example fit base cluster it was put in...
+# prompts are very basic, can improve

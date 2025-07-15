@@ -1,5 +1,5 @@
 """
-Centralized prompt configs for conversation analysis
+Centralized prompt configs for Clio analysis
 """
 
 SUMMARIZE_INSTR = """
@@ -311,11 +311,7 @@ Below are the related statements:
 Do not elaborate beyond what you say in the tags. Ensure your summary and name help people immediately understand the type of work and expertise involved.
 """
 
-# changed {clusters_per_neighborhood} to {target_clusters}, twice
-
-# Default partitions for evaluations
-
-# Evals
+# Prompts for evaluate.py
 PARTITION_RELEVANCE = """
 You are evaluating whether conversation fits its assigned partition.
 CONVERSATION SUMMARY: {summary}
@@ -410,19 +406,33 @@ FINAL SCORE: [decimal number]
 For example: FINAL SCORE: 0.73
 """
 
+# Prompts for extend.py
+PARTITION_AND_SUMMARIZE = """
+Please analyze this example and:
+    1. Provide a concise summary (1-2 sentences)
+    2. Determine which partition this example belongs to
+
+    Available partitions:
+    {available_partitions}
+
+    Example to analyze:
+    {example}
+
+    Please respond in this format:
+    SUMMARY: [your summary]
+    PARTITION: [partition name]
 """
-{
-  "summary": "debugging help with LangSmith SDK tracing for Python implementation",
-  "partition": "LangSmith product",
-  "clustering": {
-    "level_0": {
-      "id": 5,
-      "name": "Debug LangSmith Python SDK tracing integration errors"
-    },
-    "level_1": {
-      "id": 2,
-      "name": "Handle LangSmith SDK Integration and Tracing Issues"
-    }
-  }
-}
-"""
+
+BASE_CLUSTER = """
+Based on this summary: "{summary}"
+    
+    Assign this example to the most appropriate level 0 cluster in partition "{partition}".
+
+    Available clusters in partition "{partition}":
+    {cluster_options}
+
+    Example to analyze:
+    {example}
+
+    Please respond with the exact cluster name.
+  """
