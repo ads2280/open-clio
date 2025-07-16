@@ -106,9 +106,6 @@ async def summarize_example(
             logger.error(
                 f"Raw LLM response (before parsing) for example {example.id}: {raw_response}"
             )
-            # print(
-            #    f"Raw LLM response (before parsing) for example {example.id}: {raw_response}"
-            #)
         except Exception as raw_e:
             logger.error(
                 f"Could not get raw response for example {example.id}: {raw_e}"
@@ -141,6 +138,7 @@ async def summarize_all(
             result = await coro
             summaries.append(result)
             pbar.update(1)
+
 
     # summaries = await asyncio.gather(*tasks)
     num_successful = sum(s is not None for s in summaries)

@@ -69,16 +69,28 @@ class Config(TypedDict):
     max_concurrency: int | None
 
 
-def next_level(state: ClusterState) -> Literal["embed", "__end__"]:
+def prepare_next_level(
+    state: ClusterState,
+) -> (
+    dict
+):  # make parent clusters current clusters so we don't just repeat w/ current state
+    return {
+        "clusters": state["parent_clusters"],
+        "current_level": state["current_level"] + 1,
+    }
+
+
+def next_level(state: ClusterState) -> Literal["prepare_next_level", "__end__"]:
     current_level = state["current_level"]
+    print(f"\n\nDeciding whether to call next_level with current_level={current_level}, hierarchy={state['hierarchy']}\n\n")
     if current_level + 1 < len(state["hierarchy"]):
-        return "embed"
+        return "prepare_next_level"  # which --> embed
     else:
         return "__end__"
 
 
 def base_cluster(state: ClusterState) -> dict:
-    curr_level = 0  
+    curr_level = 0
 
     total_examples = len(state["summaries"])
     ratio = total_examples / state.get("total_examples", total_examples)
@@ -88,7 +100,7 @@ def base_cluster(state: ClusterState) -> dict:
     cluster_list = perform_base_clustering(
         state["summaries"], curr_k, state["partition"]
     )
-    # need to track cluster IDs so switching to dict 
+    # need to track cluster IDs so switching to dict
     clusters = {cluster["id"]: cluster for cluster in cluster_list}
     return {"clusters": clusters, "current_level": curr_level}
 
@@ -108,7 +120,7 @@ def embed(state: ClusterState) -> dict:
 
 
 # def sample_examples(state: ClusterState) -> dict:
-    # wut
+# wut
 
 
 def generate_neighborhoods_step(state: ClusterState) -> dict:
@@ -264,6 +276,7 @@ appropriately within the LangChain support structure.
 
 
 def map_rename_clusters(state: ClusterState) -> list[Send]:
+    print(f"\n\nmap_rename_clusters called with state={state}\n\n")
     current_clusters = state["clusters"]
     assignments = state["cluster_assignments"]
     level = len(state["clusters"])
@@ -402,6 +415,7 @@ cluster_builder.add_node(propose_clusters)
 cluster_builder.add_node(dedup_clusters)
 cluster_builder.add_node(assign_single_cluster)
 cluster_builder.add_node(rename_cluster_group)
+cluster_builder.add_node(prepare_next_level)
 
 cluster_builder.set_entry_point("base_cluster")
 cluster_builder.add_edge("base_cluster", "embed")
@@ -415,6 +429,7 @@ cluster_builder.add_conditional_edges(
     "assign_single_cluster", map_rename_clusters, ["rename_cluster_group"]
 )
 cluster_builder.add_conditional_edges("rename_cluster_group", next_level)
+cluster_builder.add_edge("prepare_next_level", "embed") 
 cluster_graph = cluster_builder.compile()
 
 
@@ -435,8 +450,6 @@ def load_examples(state: State) -> dict:
     hierarchy = state["hierarchy"]
     dataset_name = state["dataset_name"]
 
-    # Debug logging
-    logger.info(f"load_examples: hierarchy = {hierarchy}")
     print(f"load_examples: hierarchy = {hierarchy}")
 
     if not hierarchy:
@@ -471,14 +484,17 @@ def load_examples(state: State) -> dict:
     print(f"Loaded {total_examples} examples, generating summaries...")
     return {"total_examples": total_examples, "examples": examples}
 
+# TODO figure out how to tqdm with langgraph
 
 async def summarize(state: State) -> dict:
     example = state["example"]
+    print(f"Processing example {example.id}")  # debug
     summary = await summarize_example(
         example,
         state["partitions"],
         state.get("summary_prompt", DEFAULT_SUMMARY_PROMPT),
     )
+    print(f"summary: {summary}")  # debug
     return {"summaries": [summary]}
 
 
@@ -502,10 +518,7 @@ def map_partitions(state: State) -> list[Send]:
         if summary:
             summaries_by_partition[summary["partition"]].append(summary)
 
-    logger.info(
-        f"The dataset contains the following partitions: {list(summaries_by_partition)}"
-    )
-    print(f"Partitions: {list(summaries_by_partition.keys())}")
+    print(f"Partitions: {list(set(summaries_by_partition.keys()))}")
 
     sends = []
     for partition, cat_summaries in summaries_by_partition.items():
@@ -518,10 +531,10 @@ def map_partitions(state: State) -> list[Send]:
                     "partition": partition,
                     "examples": partition_examples,
                     "summaries": cat_summaries,
-                    "hierarchy": state["hierarchy"],  # changed to keep original not parition specific
-                    "total_examples": state[
-                        "total_examples"
-                    ],  
+                    "hierarchy": state[
+                        "hierarchy"
+                    ],  # changed to keep original not partition specific
+                    "total_examples": state["total_examples"],
                 },
             )
         )
@@ -532,13 +545,16 @@ partitioned_cluster_builder = StateGraph(State)
 partitioned_cluster_builder.add_node(load_examples)
 partitioned_cluster_builder.add_node(summarize)
 partitioned_cluster_builder.add_node("cluster_partition", cluster_graph)
+partitioned_cluster_builder.add_node("aggregate_summaries", {})
+# partitioned_cluster_builder.add_node("aggregate_summaries", lambda x: x)
 
 partitioned_cluster_builder.set_entry_point("load_examples")
 partitioned_cluster_builder.add_conditional_edges(
     "load_examples", map_summaries, ["summarize"]
 )
+partitioned_cluster_builder.add_edge("summarize", "aggregate_summaries")
 partitioned_cluster_builder.add_conditional_edges(
-    "summarize", map_partitions, ["cluster_partition"]
+    "aggregate_summaries", map_partitions, ["cluster_partition"]
 )
 partitioned_cluster_builder.add_edge("cluster_partition", END)
 partitioned_cluster_graph = partitioned_cluster_builder.compile()
@@ -571,13 +587,16 @@ from pathlib import Path
 import asyncio
 
 CONFIG_PATH = (
-    Path(__file__).parents[1] / "dataset_config.json"
+    Path(__file__).parents[1] / "configs/2_level.json"
 )  # edited for anika's local
 
 if __name__ == "__main__":
     with open(CONFIG_PATH, "r") as f:
         config = json.load(f)
-    config["summary_prompt"] = "Summarize the following examples {{example}}"
-    config["partitions"] = {}
     results = asyncio.run(run_graph(**config))
-    print(results["clusters"])
+    print(f"\n\nlen(results['clusters']): {len(results['clusters'])}")
+    print(f"\n\nresults['clusters']: {results['clusters']}")
+
+    #
+
+    # add save clusters
