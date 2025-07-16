@@ -39,7 +39,7 @@ embedder = init_embeddings("openai:text-embedding-3-small")
 llm = init_chat_model(
     "anthropic:claude-sonnet-4-20250514",
     temperature=0.2,
-    max_tokens=100,
+    max_tokens=500,
     configurable_fields=("temperature", "max_tokens", "model"),
 )
 
@@ -101,6 +101,18 @@ async def summarize_example(
 
     except Exception as e:
         logger.error(f"Error processing example {example.id}: {e}")
+        try:
+            raw_response = await llm.ainvoke(messages)
+            logger.error(
+                f"Raw LLM response (before parsing) for example {example.id}: {raw_response}"
+            )
+            # print(
+            #    f"Raw LLM response (before parsing) for example {example.id}: {raw_response}"
+            #)
+        except Exception as raw_e:
+            logger.error(
+                f"Could not get raw response for example {example.id}: {raw_e}"
+            )
         return None
 
     return {"summary": res, "partition": partition, "example_id": example.id}
@@ -155,6 +167,9 @@ def perform_base_clustering(
     Returns:
         tuple: (cluster_info, cluster_labels)
     """
+    # Safety check: partition_k must be at least 1
+    if partition_k < 1:
+        partition_k = 1
     # generate embeddings
     embeddings = np.array(embedder.embed_documents([s["summary"] for s in summaries]))
 
