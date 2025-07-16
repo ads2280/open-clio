@@ -8,6 +8,13 @@ from open_clio.generate import (
     DEFAULT_SUMMARIZATION_CONCURRENCY,
     validate_hierarchy,
     summarize_example,
+    perform_base_clustering,
+    embed_cluster_descriptions,
+    generate_neighborhoods,
+    propose_clusters_from_neighborhoods,
+    deduplicate_proposed_clusters,
+    assign_clusters_to_higher_level,
+    rename_higher_level_clusters
 )
 from logging import getLogger
 from langsmith import Client
@@ -29,6 +36,9 @@ class ClusterState(TypedDict):
     clusters: Annotated[dict[int, dict], merge_dict]
     examples: list[ls_schemas.Example]
     summaries: Annotated[list[ExampleSummary], lambda l, r: l + r]
+    total_examples: int
+    proposed_clusters: list[str] | None
+    deduplicated_clusters: list[str] | None
 
 
 class Config(TypedDict):
@@ -42,35 +52,120 @@ def next_level(state: ClusterState) -> Literal["embed", "__end__"]:
         return "__end__"
 
 
-def base_cluster(state: ClusterState) -> dict: ...
+def base_cluster(state: ClusterState) -> dict:
+    curr_level = len(state["clusters"])
+    curr_k = state["hierarchy"][curr_level]  # k for this partition at this level
+    clusters = perform_base_clustering(state["summaries"], curr_k, state["partition"])
+    return {"clusters": clusters}
 
 
 def embed(state: ClusterState) -> dict:
-    curr_level = len(state["clusters"])
-    curr_k = state["hierarchy"][curr_level]
+    # clusters is a dict[int, dict] where each key is a cluster id (int or uuid), and each value is a dict
+    # with at least "id" and "name" fields (and possibly others like "description", "examples", etc.)
+    for id, info in state["clusters"].items():
+        embeddings = embed_cluster_descriptions(info.get("description", ""))
+        state["clusters"][id]["embeddings"] = embeddings
+    return {"clusters": state["clusters"]}
+
+
+def sample_examples(state: ClusterState) -> dict:
     ...
+    # wut
 
 
 def map_neighborhoods(state: ClusterState) -> list[Send]:
-    return [Send("generate_neighborhood", {...})]
+    return [
+        Send(
+            "generate_neighborhood",
+            {
+                "embeddings": state["clusters"][id]["embeddings"],
+                "num_clusters": state["hierarchy"][len(state["clusters"])],
+                "target_clusters": state["hierarchy"][len(state["clusters"]) + 1],
+            },
+        )
+        for id in state["clusters"]
+    ]
 
 
-def generate_neighborhood(state: ClusterState) -> dict: ...
+def generate_neighborhood(state: ClusterState) -> dict:
+    cluster_embeddings = state["embeddings"]
+    num_clusters = state["num_clusters"]
+    target_clusters = state["target_clusters"]
+    neighborhood_labels, _ = generate_neighborhoods(
+        cluster_embeddings, num_clusters, target_clusters
+    )
+    return {"neighborhood_labels": neighborhood_labels}
 
 
-def propose_clusters(state: ClusterState) -> dict: ...
-def dedup_clusters(state: ClusterState) -> dict: ...
-def assign_clusters(state: ClusterState) -> dict: ...
-def rename_parent_clusters(state: ClusterState) -> dict: ...
+def propose_clusters(state: ClusterState) -> dict:
+    current_clusters = state["clusters"]
+    cluster_ids = list(current_clusters.keys())
+    neighborhood_labels = state["neighborhood_labels"]
+    k_neighborhoods = len(set(neighborhood_labels))
+    target_clusters = state["hierarchy"][len(current_clusters)]
+
+    proposed = propose_clusters_from_neighborhoods(
+        current_clusters,
+        cluster_ids,
+        neighborhood_labels,
+        k_neighborhoods,
+        target_clusters,
+    )
+    return {"proposed_clusters": proposed}   # just added to state?
+
+def dedup_clusters(state: ClusterState) -> dict:
+    proposed = state["proposed_clusters"]
+    target_clusters = state["hierarchy"][len(state["clusters"])]
+    deduplicated = deduplicate_proposed_clusters(proposed, target_clusters)
+    return {"deduplicated_clusters": deduplicated}
 
 
+def map_assign_clusters(state: ClusterState) -> list[Send]:
+    current_clusters = state["clusters"]
+    deduplicated = state["deduplicated_clusters"]
+    return [
+        Send(
+            "assign_single_cluster",
+            {
+                "cluster_id": cluster_id,
+                "cluster_info": cluster_info,
+                "deduplicated": deduplicated,
+            },
+        )
+        for cluster_id, cluster_info in current_clusters.items()
+    ]
+
+def assign_single_cluster(state: ClusterState) -> dict:
+    # TODO - make logic from assign_clusters_to_higher_level for a single cluster
+    # return {"cluster_assignment": {cluster_id: assigned_name}}
+    # can decide whether to implement here or in generate.py
+    pass
+
+def map_rename_clusters(state: ClusterState) -> list[Send]:
+    pass
+# same as above
+
+def rename_cluster_group(state: ClusterState) -> dict:
+    pass
+
+def rename_parent_clusters(state: ClusterState) -> dict: 
+    current_clusters = state["clusters"]
+    assignments = state["cluster_assignments"]
+    level = len(state["clusters"])
+    partition = state["partition"]
+    parent_clusters = rename_higher_level_clusters(current_clusters, assignments, level, partition)
+    return {"parent_clusters": parent_clusters}
+
+
+def map_rename_clusters(state: ClusterState) -> list[Send]:
+    pass
 cluster_builder = StateGraph(ClusterState)
 cluster_builder.add_node(base_cluster)
 cluster_builder.add_node(embed)
 cluster_builder.add_node(generate_neighborhood)
 cluster_builder.add_node(propose_clusters)
 cluster_builder.add_node(dedup_clusters)
-cluster_builder.add_node(assign_clusters)
+cluster_builder.add_node(assign_single_cluster)
 cluster_builder.add_node(rename_parent_clusters)
 
 cluster_builder.add_edge("base_cluster", "embed")
@@ -79,10 +174,14 @@ cluster_builder.add_condition_edges(
 )
 cluster_builder.add_edge("generate_neighborhood", "propose_clusters")
 cluster_builder.add_edge("propose_clusters", "dedup_clusters")
-cluster_builder.add_edge("dedup_clusters", "assign_clusters")
-# TODO: Parallelize
-cluster_builder.add_edge("assign_clusters", "rename_parent_clusters")
-# TODO: Parallelize
+# TODO: Parallelize -> in generate
+cluster_builder.add_conditional_edges(
+    "dedup_clusters", map_assign_clusters, ["assign_single_cluster"]
+)
+# TODO: Parallelize -> in generate
+cluster_builder.add_conditional_edges(
+    "assign_single_cluster", map_rename_clusters, ["rename_cluster_group"]
+)
 cluster_builder.add_conditional_edges("rename_parent_clusters", next_level)
 cluster_graph = cluster_builder.compile()
 
@@ -157,7 +256,6 @@ def map_summaries(state: State) -> list[Send]:
 
 def map_partitions(state: State) -> list[Send]:
     summaries_by_partition = defaultdict(list)
-    # Prepare to process examples by partition
     for summary in state["summaries"]:
         if summary:
             summaries_by_partition[summary["partition"]].append(summary)
@@ -171,8 +269,11 @@ def map_partitions(state: State) -> list[Send]:
     for partition, cat_summaries in summaries_by_partition.items():
         example_ids = [s["example_id"] for s in cat_summaries]
         partition_examples = [e for e in state["examples"] if e.id in example_ids]
-        # TODO update based on partition size
-        hierarchy = state["hierarchy"] * ...
+        # TODO update based on partition size - done
+        ratio = len(cat_summaries) / state["total_examples"]
+        hierarchy = [
+            int(round(k * ratio)) for k in state["hierarchy"]
+        ]  # make partition-specific hierarchy
         sends.append(
             Send(
                 "cluster_partition",

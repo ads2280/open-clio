@@ -423,7 +423,6 @@ def assign_clusters_to_higher_level(current_clusters, deduplicated):
         f"Assigning {len(current_clusters)} clusters to {len(deduplicated)} higher-level clusters..."
     )
     assignments = {}
-    # Clio randomly shuffles higher level cluster names to avoid order bias (what?)
     shuffled = deduplicated.copy()
     random.shuffle(shuffled)
     higher_level_text = "\n".join([f"<cluster>{name}</cluster>" for name in shuffled])
