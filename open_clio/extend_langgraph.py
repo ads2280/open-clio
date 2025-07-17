@@ -1,3 +1,4 @@
+import asyncio
 from typing_extensions import TypedDict, Annotated
 from langgraph.graph import StateGraph, END
 from langsmith import schemas as ls_schemas
@@ -9,6 +10,7 @@ from open_clio.extend import (
     extend_results,
 )
 
+# TODO test this, on chat-langchain? increase sample to 105 or sth.
 
 class ExtendState(TypedDict):
     # configs
@@ -29,14 +31,14 @@ class ExtendState(TypedDict):
     processed_count: Annotated[int, lambda l, r: l + r]
 
 
-def load_hierarchy(state: ExtendState) -> dict:
+def load_hierarchy_node(state: ExtendState) -> dict:
     save_path = state["save_path"]
     existing_data = load_hierarchy(save_path)
     existing_eids = set(existing_data["combined_df"]["example_id"].tolist())
     return {"existing_data": existing_data, "existing_eids": existing_eids}
 
 
-def load_examples(state: ExtendState) -> dict:
+def load_examples_node(state: ExtendState) -> dict:
     dataset_name = state["dataset_name"]
     sample = state["sample"]
     existing_eids = state["existing_eids"]
@@ -60,7 +62,7 @@ def load_examples(state: ExtendState) -> dict:
 def map_assign_examples(state: ExtendState) -> list[Send]:
     return [
         Send(
-            "process_single_example",
+            "assign_single_example",
             {
                 "example": example,
                 "existing_data": state["existing_data"],
@@ -70,41 +72,61 @@ def map_assign_examples(state: ExtendState) -> list[Send]:
     ]
 
 
-def assign_single_example(
+async def assign_single_example(
     state: ExtendState,
 ) -> dict:  # took out expected partition param
     example = state["example"]
     existing_data = state["existing_data"]
     # where the magic happens
     # although prompts pretty basic currently
-    assignment = process_single_examples(example, existing_data)
-    return {"assignment": assignment}
+    assignment = await process_single_examples(example, existing_data)
+    return {"assignments": [assignment]}
 
 
 def aggregate_assignments(state: ExtendState) -> dict:
     return {}
 
 
-def extend_results(state: ExtendState) -> dict:
+def extend_results_node(state: ExtendState) -> dict:
     assignments = state["assignments"]
     save_path = state["save_path"]
     extend_results(assignments, save_path)
+    return {}
 
 
 cluster_extender = StateGraph(ExtendState)
-cluster_extender.add_node(load_hierarchy)
-cluster_extender.add_node(load_examples)
+cluster_extender.add_node(load_hierarchy_node)
+cluster_extender.add_node(load_examples_node)
 cluster_extender.add_node(assign_single_example)  # parallel
 cluster_extender.add_node(aggregate_assignments)
-cluster_extender.add_node(extend_results)
+cluster_extender.add_node(extend_results_node)
 
-cluster_extender.set_entry_point("load_hierarchy")
-cluster_extender.add_edge("load_hierarchy", "load_examples")
+cluster_extender.set_entry_point("load_hierarchy_node")
+cluster_extender.add_edge("load_hierarchy_node", "load_examples_node")
 cluster_extender.add_conditional_edges(
-    "load_examples", map_assign_examples, ["assign_single_example"]
+    "load_examples_node", map_assign_examples, ["assign_single_example"]
 )
 cluster_extender.add_edge("assign_single_example", "aggregate_assignments")
-cluster_extender.add_edge("aggregate_assignments", "extend_results")
-cluster_extender.add_edge("save_results", END)
+cluster_extender.add_edge("aggregate_assignments", "extend_results_node")
+cluster_extender.add_edge("extend_results_node", END)
 
-cluster_extender.compile()
+cluster_extender_graph = cluster_extender.compile()
+
+
+async def run_graph(dataset_name: str, save_path: str, sample: int | None = None):
+    results = await cluster_extender_graph.ainvoke(
+        {
+            "dataset_name": dataset_name,
+            "save_path": save_path,
+            "sample": sample,
+        },
+        config={
+            "recursion_limit": 100,
+        },
+    )
+    return results
+
+
+if __name__ == "__main__":
+    results = asyncio.run(run_graph("unthread-data", "./easy_config_results", 10))
+    print(f"Results: {results}")

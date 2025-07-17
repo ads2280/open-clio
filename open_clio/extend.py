@@ -522,3 +522,4 @@ async def main(dataset_name, save_path=None, sample=None):
         print(f"{len(all)} new assignments added")
     else:
         print("No new assignments to add")
+
