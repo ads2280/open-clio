@@ -38,7 +38,6 @@ DEFAULT_SUMMARY_PROMPT = """summarize por favor: {{example}}"""
 
 logger = getLogger(__name__)
 
-
 def merge_dict(l: dict, r: dict) -> dict:
     result = l.copy()
     for key, value in r.items():
@@ -49,7 +48,6 @@ def merge_dict(l: dict, r: dict) -> dict:
             # overwrite like before
             result[key] = value
     return result
-
 
 class ClusterState(TypedDict):
     partition: str
@@ -79,7 +77,6 @@ class ClusterState(TypedDict):
     # Track all clusters by level
     all_clusters_by_level: Annotated[dict, merge_dict]
 
-
 class ClusterStateOutput(TypedDict):
     partition: str
     hierarchy: list[int]
@@ -105,10 +102,8 @@ class ClusterStateOutput(TypedDict):
     # Track all clusters by level
     all_clusters_by_level: Annotated[dict, merge_dict]
 
-
 class Config(TypedDict):
     max_concurrency: int | None
-
 
 def prepare_next_level(state: ClusterState) -> dict:
     # save level n clusters before moving to level n+1
@@ -140,14 +135,12 @@ def prepare_next_level(state: ClusterState) -> dict:
         "level": None,
     }
 
-
 def next_level(state: ClusterState) -> Literal["prepare_next_level", "__end__"]:
     current_level = state["current_level"]
     if current_level + 1 < len(state["hierarchy"]):
         return "prepare_next_level"  # which --> embed
     else:
         return "__end__"
-
 
 def base_cluster(state: ClusterState) -> dict:
     curr_level = 0
@@ -168,7 +161,6 @@ def base_cluster(state: ClusterState) -> dict:
     clusters = {cluster["id"]: cluster for cluster in cluster_list}
     return {"clusters": clusters, "current_level": curr_level}
 
-
 def embed(state: ClusterState) -> dict:
     # dict[int, dict] where each key is a cluster id (int or uuid), and each value is a dict
     # with at least "id" and "name" fields (and possibly others like "description", "examples", etc.)
@@ -185,7 +177,6 @@ def embed(state: ClusterState) -> dict:
 
 # def sample_examples(state: ClusterState) -> dict:
 # wut
-
 
 def generate_neighborhoods_step(state: ClusterState) -> dict:
     curr_level = state["current_level"]
@@ -227,7 +218,6 @@ def generate_neighborhoods_step(state: ClusterState) -> dict:
         "target_clusters": target_clusters,
     }
 
-
 def propose_clusters(state: ClusterState) -> dict:
     current_clusters = state["clusters"]
     cluster_ids = list(current_clusters.keys())
@@ -245,13 +235,11 @@ def propose_clusters(state: ClusterState) -> dict:
     )
     return {"proposed_clusters": proposed}
 
-
 def dedup_clusters(state: ClusterState) -> dict:
     proposed = state["proposed_clusters"]
     target_clusters = state["target_clusters"]
     deduplicated = deduplicate_proposed_clusters(proposed, target_clusters)
     return {"deduplicated_clusters": deduplicated}
-
 
 def map_assign_clusters(state: ClusterState) -> list[Send]:
     current_clusters = state["clusters"]
@@ -267,7 +255,6 @@ def map_assign_clusters(state: ClusterState) -> list[Send]:
         )
         for cluster_id, cluster_info in current_clusters.items()
     ]
-
 
 def assign_single_cluster(state: ClusterState) -> dict:
     # TODO Extract the logic from assign_clusters_to_higher_level for a single cluster
@@ -506,7 +493,6 @@ def save_final_level(state: ClusterState) -> dict:
         "all_clusters_by_level": final_level_clusters,
     }
 
-
 cluster_builder = StateGraph(ClusterState, output_schema=ClusterStateOutput)
 cluster_builder.add_node(base_cluster)
 cluster_builder.add_node(embed)
@@ -548,7 +534,6 @@ cluster_builder.add_edge("prepare_next_level", "embed")
 cluster_builder.add_edge("save_final_level", "__end__")
 cluster_graph = cluster_builder.compile()
 
-
 class State(TypedDict):
     dataset_name: str
     sample: int | float | None
@@ -560,7 +545,6 @@ class State(TypedDict):
     total_examples: Annotated[int, lambda l, r: max(l, r)]
     clusters: Annotated[dict, merge_dict]
     all_clusters_by_level: Annotated[dict, merge_dict]
-
 
 def load_examples(state: State) -> dict:
     partitions = state["partitions"]
@@ -603,7 +587,6 @@ async def summarize(state: State) -> dict:
     )
     return {"summaries": [summary]}
 
-
 def map_summaries(state: State) -> list[Send]:
     return [
         Send(
@@ -616,7 +599,6 @@ def map_summaries(state: State) -> list[Send]:
         )
         for e in state["examples"]
     ]
-
 
 def map_partitions(state: State) -> list[Send]:
     summaries_by_partition = defaultdict(list)
@@ -647,7 +629,6 @@ def map_partitions(state: State) -> list[Send]:
         )
     return sends
 
-
 partitioned_cluster_builder = StateGraph(State)
 partitioned_cluster_builder.add_node(load_examples)
 partitioned_cluster_builder.add_node(summarize)
@@ -665,7 +646,6 @@ partitioned_cluster_builder.add_conditional_edges(
 )
 partitioned_cluster_builder.add_edge("cluster_partition", END)
 partitioned_cluster_graph = partitioned_cluster_builder.compile()
-
 
 async def run_graph(
     dataset_name: str,
