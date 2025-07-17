@@ -57,7 +57,6 @@ def run_generate_langgraph(config):
 
 def run_viz(config):
     print("Launching cluster visualization...")
-    # Extract the specific values that viz needs and pass them as environment variables
     save_path = config.get("save_path", "./clustering_results")
     dataset_name = config.get("dataset_name")
     partitions = config.get("partitions")

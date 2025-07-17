@@ -39,7 +39,15 @@ DEFAULT_SUMMARY_PROMPT = """summarize por favor: {{example}}"""
 logger = getLogger(__name__)
 
 def merge_dict(l: dict, r: dict) -> dict:
-    return {**l, **r}
+    result = l.copy()
+    for key, value in r.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            # merge the inner dicts for partitions otherwise only get results for 1 partition
+            result[key] = {**result[key], **value}
+        else:
+            # overwrite like before
+            result[key] = value
+    return result
 
 class ClusterState(TypedDict):
     partition: str
@@ -612,7 +620,7 @@ def map_partitions(state: State) -> list[Send]:
             summaries_by_partition[summary["partition"]].append(summary)
 
     print(", ".join(set(summaries_by_partition.keys())))
-    print("[tqdm would be helpful here]")
+    print("\n[tqdm would be helpful here]\n")
 
     sends = []
     for partition, cat_summaries in summaries_by_partition.items():
@@ -684,10 +692,10 @@ def save_langgraph_results(results, save_path="./clustering_results"):
     os.makedirs(save_path, exist_ok=True)
     
     # 1. combined.csv: save examples with clustering info
-    all_clusters = results.get("all_clusters_by_level", {}) #N
-    num_clusters = sum(len(level_clusters) for level_clusters in all_clusters.values()) #N
-    print(f"Clustering complete, saving results to {save_path}/ ...") #N
-    print(f"Total clusters created: {num_clusters}")#N
+    all_clusters = results.get("all_clusters_by_level", {}) 
+    num_clusters = sum(len(level_clusters) for level_clusters in all_clusters.values()) 
+    print(f"Clustering complete, saving results to {save_path}/ ...") 
+    # print(f"Total clusters created: {num_clusters}")
     examples_data = []
 
     examples = results.get("examples", [])
