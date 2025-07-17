@@ -26,6 +26,7 @@ def run_generate(config):
     asyncio.run(generate_clusters(**config))
     print("Clustering complete!")
 
+
 def run_generate_langgraph(config):
     print("Starting Clio clustering pipeline with LangGraph...")
     print(f"Dataset: {config['dataset_name']}")
@@ -33,25 +34,27 @@ def run_generate_langgraph(config):
     print(f"Current working directory: {os.getcwd()}")
 
     from open_clio.generate_langgraph import run_graph, save_langgraph_results
-    
-    dataset_name = config['dataset_name']
-    hierarchy = config['hierarchy']
-    summary_prompt = config.get('summary_prompt', 'summarize por favor: {{example}}')
-    save_path = config.get('save_path', './clustering_results')
-    partitions = config.get('partitions')
-    sample = config.get('sample')
-    max_concurrency = config.get('max_concurrency', 10)
-    
-    results = asyncio.run(run_graph(
-        dataset_name=dataset_name,
-        hierarchy=hierarchy,
-        summary_prompt=summary_prompt,
-        save_path=save_path,
-        partitions=partitions,
-        sample=sample,
-        max_concurrency=max_concurrency,
-    ))
-    
+
+    dataset_name = config["dataset_name"]
+    hierarchy = config["hierarchy"]
+    summary_prompt = config.get("summary_prompt", "summarize por favor: {{example}}")
+    save_path = config.get("save_path", "./clustering_results")
+    partitions = config.get("partitions")
+    sample = config.get("sample")
+    max_concurrency = config.get("max_concurrency", 10)
+
+    results = asyncio.run(
+        run_graph(
+            dataset_name=dataset_name,
+            hierarchy=hierarchy,
+            summary_prompt=summary_prompt,
+            save_path=save_path,
+            partitions=partitions,
+            sample=sample,
+            max_concurrency=max_concurrency,
+        )
+    )
+
     save_langgraph_results(results, save_path)
 
 

@@ -519,11 +519,3 @@ async def main(dataset_name, save_path="./clustering_results", sample=None):
         print(f"{len(all)} new assignments added")
     else:
         print("No new assignments to add")
-
-
-# size vs total size? size = no of sub clusters, total size = no of examples (fixed)
-
-# next
-# process >1 example at a time
-# wonder how similar (in accuracy) it is to doing entire clustering again. this could maybe give some indication of how well example fit base cluster it was put in...
-# prompts are very basic, can improve
