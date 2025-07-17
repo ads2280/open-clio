@@ -1,0 +1,15 @@
+{
+"dataset_name": "unthread-data",
+"hierarchy": [6],
+"summary_prompt": "Summarize this example: {{example}}",
+"save_path": "./partitioned_results",
+"sample": 20,
+"partitions": {
+    "Admin/Account management": "Billing, Authentication, Account Management, Data Deletion, Security/Privacy",
+    "LangChain OSS": "Python library, JavaScript library, LangMem and other components",
+    "LangSmith product": "Evaluation, Dashboards, Annotations, Datasets & Experiments, Playground, SDK/Tracing, Prompt Hub",
+    "LangGraph": "Platform (deployment/infra), OSS Python, OSS JavaScript, Studio, Pricing",
+    "LangSmith deployment": "Setting up SSO, provisioning cloud resources, managing databases, helm/kubernetes/docker/AWS/GCP/Azure",
+    "Other": "Sales inquiries, Spam, Unrelated issues"
+    }
+}
