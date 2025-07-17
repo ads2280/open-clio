@@ -5,7 +5,7 @@ Centralized prompt configs for Clio analysis
 SUMMARIZE_INSTR = """
 {summary_prompt}
 
-Provide your summary in <answer> tags and select the most appropriate partition for this conversation from the provided list:
+Provide your summary and also select the most appropriate partition for this conversation from the provided list:
 {partitions}
 """
 

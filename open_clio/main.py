@@ -26,9 +26,37 @@ def run_generate(config):
     asyncio.run(generate_clusters(**config))
     print("Clustering complete!")
 
+def run_generate_langgraph(config):
+    print("Starting Clio clustering pipeline with LangGraph...")
+    print(f"Dataset: {config['dataset_name']}")
+    print(f"Hierarchy (number of examples at each level): {config['hierarchy']}\n")
+    print(f"Current working directory: {os.getcwd()}")
+
+    from open_clio.generate_langgraph import run_graph, save_langgraph_results
+    
+    dataset_name = config['dataset_name']
+    hierarchy = config['hierarchy']
+    summary_prompt = config.get('summary_prompt', 'summarize por favor: {{example}}')
+    save_path = config.get('save_path', './clustering_results')
+    partitions = config.get('partitions')
+    sample = config.get('sample')
+    max_concurrency = config.get('max_concurrency', 10)
+    
+    results = asyncio.run(run_graph(
+        dataset_name=dataset_name,
+        hierarchy=hierarchy,
+        summary_prompt=summary_prompt,
+        save_path=save_path,
+        partitions=partitions,
+        sample=sample,
+        max_concurrency=max_concurrency,
+    ))
+    
+    save_langgraph_results(results, save_path)
+
 
 def run_viz(config):
-    print("Starting Clio visualization...")
+    print("Launching cluster visualization...")
     # Extract the specific values that viz needs and pass them as environment variables
     save_path = config.get("save_path", "./clustering_results")
     dataset_name = config.get("dataset_name")
@@ -74,6 +102,7 @@ def main():
         epilog="""
 examples:
   open-clio generate --config config.json    # generate clustering and launch visualization
+  open-clio langgraph --config config.json   # generate clustering with LangGraph and launch visualization
   open-clio viz --config config.json         # launch visualization only
   open-clio evaluate --config config.json    # run evaluation on generated clusters
   open-clio extend --config config.json      # extend existing clusters with new examples
@@ -85,8 +114,8 @@ For more information, see the README or visit the project repository.
     parser.add_argument(
         "action",
         nargs="?",
-        choices=["generate", "evaluate", "viz", "extend"],
-        help="Action to perform (generate: clustering + viz, evaluate: run metrics, viz: visualization only, extend: add new examples to existing clusters)",
+        choices=["generate", "langgraph", "evaluate", "viz", "extend"],
+        help="Action to perform (generate: clustering + viz, langgraph: langgraph clustering + viz, evaluate: run metrics, viz: visualization only, extend: add new examples to existing clusters)",
     )
     parser.add_argument(
         "--config",
@@ -104,6 +133,9 @@ For more information, see the README or visit the project repository.
 
     if args.action == "generate":
         run_generate(config)
+        run_viz(config)
+    elif args.action == "langgraph":
+        run_generate_langgraph(config)
         run_viz(config)
     elif args.action == "evaluate":
         run_evaluate(config)
