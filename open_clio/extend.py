@@ -484,6 +484,3 @@ def update_cluster_files(cluster_updates, save_path):
 
         # Save to the updated file
         df.to_csv(updated_level_file, index=False)
-
-
-
