@@ -69,32 +69,33 @@ class ClusterState(TypedDict):
 class Config(TypedDict):
     max_concurrency: int | None
 
+
 def prepare_next_level(state: ClusterState) -> dict:
-    print(f"Preparing next level: {state['current_level']} -> {state['current_level'] + 1}")
+    print(
+        f"Preparing next level: {state['current_level']} -> {state['current_level'] + 1}"
+    )
     print(f"parent_clusters count: {len(state.get('parent_clusters', {}))}")
     print(f"parent_clusters keys: {list(state.get('parent_clusters', {}).keys())}")
-    print(f"Clearing cluster_assignments. Old keys: {list(state.get('cluster_assignments', {}).keys())}")
-    
-    # Save current level's clusters before moving to next level
+    print(
+        f"Clearing cluster_assignments. Old keys: {list(state.get('cluster_assignments', {}).keys())}"
+    )
+
+    # save level n clusters before moving to level n+1
     current_level_clusters = {f"level_{state['current_level']}": state["clusters"]}
-    
-    # Get existing all_clusters_by_level and merge with current level
     existing_clusters = state.get("all_clusters_by_level", {})
     updated_clusters = {**existing_clusters, **current_level_clusters}
-    
-    # Clear all the old state and only keep what's needed for the next level
+
+    # Clear all the old state
     return {
-        "clusters": state["parent_clusters"],  # Only keep the new parent clusters
+        "clusters": state["parent_clusters"],
         "current_level": state["current_level"] + 1,
-        "all_clusters_by_level": updated_clusters,  # Accumulate levels instead of overwriting
-        # Clear these to prevent accumulation
-        "cluster_assignments": {},  # Clear old assignments - new ones will be created
+        "all_clusters_by_level": updated_clusters,  # prev was overwriting, need to accumulate
+        "cluster_assignments": {},
         "parent_clusters": {},
         "proposed_clusters": None,
         "deduplicated_clusters": None,
         "neighborhood_labels": None,
         "target_clusters": None,
-        # Clear these fields that are used for parallel processing
         "cluster_id": None,
         "cluster_info": None,
         "deduplicated": None,
@@ -104,9 +105,12 @@ def prepare_next_level(state: ClusterState) -> dict:
         "level": None,
     }
 
+
 def next_level(state: ClusterState) -> Literal["prepare_next_level", "__end__"]:
     current_level = state["current_level"]
-    print(f"Checking next level: current={current_level}, hierarchy={state['hierarchy']}")
+    print(
+        f"Checking next level: current={current_level}, hierarchy={state['hierarchy']}"
+    )
     if current_level + 1 < len(state["hierarchy"]):
         print(f"Moving to next level: {current_level + 1}")
         return "prepare_next_level"  # which --> embed
@@ -137,7 +141,9 @@ def embed(state: ClusterState) -> dict:
     print(f"Embedding clusters for level {state['current_level']}")
     print(f"Number of clusters to embed: {len(state['clusters'])}")
     print(f"Cluster keys: {list(state['clusters'].keys())}")
-    print(f"Cluster names: {[state['clusters'][k].get('name', 'NO_NAME') for k in state['clusters'].keys()]}")
+    print(
+        f"Cluster names: {[state['clusters'][k].get('name', 'NO_NAME') for k in state['clusters'].keys()]}"
+    )
     # dict[int, dict] where each key is a cluster id (int or uuid), and each value is a dict
     # with at least "id" and "name" fields (and possibly others like "description", "examples", etc.)
     current_clusters = state["clusters"]
@@ -220,7 +226,9 @@ def dedup_clusters(state: ClusterState) -> dict:
 
 
 def map_assign_clusters(state: ClusterState) -> list[Send]:
-    print(f"Assigning {len(state['clusters'])} clusters to higher level for level {state['current_level']}")
+    print(
+        f"Assigning {len(state['clusters'])} clusters to higher level for level {state['current_level']}"
+    )
     print(f"Cluster keys being assigned: {list(state['clusters'].keys())}")
     current_clusters = state["clusters"]
     deduplicated = state["deduplicated_clusters"]
@@ -311,25 +319,31 @@ appropriately within the LangChain support structure.
 
 def aggregate_assignments(state: ClusterState) -> dict:
     print(f"Aggregating cluster assignments for level {state['current_level']}")
-    print(f"Cluster assignments keys: {list(state.get('cluster_assignments', {}).keys())}")
+    print(
+        f"Cluster assignments keys: {list(state.get('cluster_assignments', {}).keys())}"
+    )
     return state
+
 
 def map_rename_clusters(state: ClusterState) -> list[Send]:
     print(f"Renaming clusters for level {state['current_level']}")
     current_clusters = state["clusters"]  # Get clusters from state
     assignments = state["cluster_assignments"]
-    level = state["current_level"] # prev "level": len(state["clusters"])
+    level = state["current_level"]  # prev "level": len(state["clusters"])
     partition = state["partition"]
 
     print(f"Current cluster keys: {list(current_clusters.keys())}")
     print(f"Assignment keys: {list(assignments.keys())}")
 
-    # Only process assignments for clusters that exist in current_clusters 
+    # Only process assignments for clusters that exist in current_clusters
+    # fixes an error where we try to rename a cluster that doesn't exist at this level
     valid_assignments = {k: v for k, v in assignments.items() if k in current_clusters}
-    
+
     if len(valid_assignments) != len(assignments):
-        print(f"WARNING: Filtered out {len(assignments) - len(valid_assignments)} assignments for clusters not in current level")
-    
+        print(
+            f"WARNING: Filtered out {len(assignments) - len(valid_assignments)} assignments for clusters not in current level"
+        )
+
     cluster_groups = {}
     for cluster_id, assigned_hl in valid_assignments.items():
         if assigned_hl not in cluster_groups:
@@ -337,7 +351,7 @@ def map_rename_clusters(state: ClusterState) -> list[Send]:
         cluster_groups[assigned_hl].append(cluster_id)
 
     print(f"Created {len(cluster_groups)} cluster groups to rename")
-    
+
     return [
         Send(
             "rename_cluster_group",
@@ -346,7 +360,10 @@ def map_rename_clusters(state: ClusterState) -> list[Send]:
                 "member_cluster_ids": member_ids,
                 "level": level,
                 "partition": partition,
-                "member_cluster_infos": {cluster_id: current_clusters[cluster_id] for cluster_id in member_ids},  # Pass specific cluster infos
+                "member_cluster_infos": {
+                    cluster_id: current_clusters[cluster_id]
+                    for cluster_id in member_ids
+                },  # specific cluster infos for one cluster
             },
         )
         for hl_name, member_ids in cluster_groups.items()
@@ -354,10 +371,12 @@ def map_rename_clusters(state: ClusterState) -> list[Send]:
 
 
 def rename_cluster_group(state: ClusterState) -> dict:
-    print(f"Renaming cluster group '{state['hl_name']}' with {len(state['member_cluster_ids'])} members")
+    print(
+        f"Renaming cluster group '{state['hl_name']}' with {len(state['member_cluster_ids'])} members"
+    )
     hl_name = state["hl_name"]
     member_cluster_ids = state["member_cluster_ids"]
-    member_cluster_infos = state["member_cluster_infos"]  # Use the passed cluster infos
+    member_cluster_infos = state["member_cluster_infos"]
     level = state["level"]
     partition = state["partition"]
 
@@ -365,7 +384,7 @@ def rename_cluster_group(state: ClusterState) -> dict:
     cluster_list = []
     total_size = 0
     for cluster_id in member_cluster_ids:
-        cluster_info_item = member_cluster_infos[cluster_id]  # Use the passed cluster infos
+        cluster_info_item = member_cluster_infos[cluster_id]
         cluster_list.append(f"<cluster>({cluster_info_item['name']})</cluster>")
         total_size += cluster_info_item.get(
             "size", cluster_info_item.get("total_size", 1)
@@ -429,13 +448,19 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
         # "current_level": state["level"] + 1, #invalid update err
     }
 
+
 def aggregate_renames(state: ClusterState) -> dict:
     print(f"Aggregating rename results for level {state['current_level']}")
     return state
 
-def should_continue(state: ClusterState) -> Literal["prepare_next_level", "save_final_level", "__end__"]:
+
+def should_continue(
+    state: ClusterState,
+) -> Literal["prepare_next_level", "save_final_level", "__end__"]:
     current_level = state["current_level"]
-    print(f"Checking next level: current={current_level}, hierarchy={state['hierarchy']}")
+    print(
+        f"Checking next level: current={current_level}, hierarchy={state['hierarchy']}"
+    )
     if current_level + 1 < len(state["hierarchy"]):
         print(f"Moving to next level: {current_level + 1}")
         return "prepare_next_level"
@@ -445,10 +470,11 @@ def should_continue(state: ClusterState) -> Literal["prepare_next_level", "save_
 
 
 def save_final_level(state: ClusterState) -> dict:
+    # because this doesn't go through prepare_next_level()
     print(f"Saving final level clusters for level {state['current_level']}")
-    # Save the final level's clusters before ending
     final_level_clusters = {f"level_{state['current_level']}": state["clusters"]}
     return {"all_clusters_by_level": final_level_clusters}
+
 
 cluster_builder = StateGraph(ClusterState)
 cluster_builder.add_node(base_cluster)
@@ -479,10 +505,12 @@ cluster_builder.add_edge("assign_single_cluster", "aggregate_assignments")
 cluster_builder.add_conditional_edges(
     "aggregate_assignments", map_rename_clusters, ["rename_cluster_group"]
 )
-# and same for rename ?
+# and same for rename clusters
 cluster_builder.add_edge("rename_cluster_group", "aggregate_renames")
 
-cluster_builder.add_conditional_edges("aggregate_renames", should_continue, ["prepare_next_level", "save_final_level"])
+cluster_builder.add_conditional_edges(
+    "aggregate_renames", should_continue, ["prepare_next_level", "save_final_level"]
+)
 cluster_builder.add_edge("prepare_next_level", "embed")
 cluster_builder.add_edge("save_final_level", "__end__")
 cluster_graph = cluster_builder.compile()
@@ -540,7 +568,9 @@ def load_examples(state: State) -> dict:
     print(f"Loaded {total_examples} examples, generating summaries...")
     return {"total_examples": total_examples, "examples": examples}
 
+
 # TODO figure out how to tqdm with langgraph
+
 
 async def summarize(state: State) -> dict:
     example = state["example"]
@@ -633,7 +663,11 @@ async def run_graph(
             "partitions": partitions,
             "sample": sample,
         },
-        config={"summary_prompt": summary_prompt, "max_concurrency": max_concurrency, "recursion_limit": 100}
+        config={
+            "summary_prompt": summary_prompt,
+            "max_concurrency": max_concurrency,
+            "recursion_limit": 100,
+        },
     )
     return results
 
@@ -651,8 +685,8 @@ if __name__ == "__main__":
         config = json.load(f)
     results = asyncio.run(run_graph(**config))
 
-    # Print clusters for each level in the requested format
-    all_clusters = results.get('all_clusters_by_level', {})
+    # Print all results
+    all_clusters = results.get("all_clusters_by_level", {})
     for level_key in sorted(all_clusters.keys()):
         level_clusters = all_clusters[level_key]
         print(f"\n{level_key.upper()}: {len(level_clusters)} clusters")

@@ -139,7 +139,6 @@ async def summarize_all(
             summaries.append(result)
             pbar.update(1)
 
-
     # summaries = await asyncio.gather(*tasks)
     num_successful = sum(s is not None for s in summaries)
     total_ex = len(examples)
