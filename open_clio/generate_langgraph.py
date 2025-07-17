@@ -670,7 +670,7 @@ partitioned_cluster_graph = partitioned_cluster_builder.compile()
 async def run_graph(
     dataset_name: str,
     hierarchy: list,
-    summary_prompt: str,  # TODO
+    summary_prompt: str,  
     *,
     save_path: str | None = None,
     partitions: dict | None = None,
@@ -693,7 +693,9 @@ async def run_graph(
     return results
 
 
-def save_langgraph_results(results, save_path="./clustering_results"):
+def save_langgraph_results(results, save_path=None):
+    if save_path is None:
+        save_path = "./clustering_results"
     os.makedirs(save_path, exist_ok=True)
 
     # 1. combined.csv: save examples with clustering info

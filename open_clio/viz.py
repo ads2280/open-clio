@@ -71,7 +71,7 @@ class ClusteringExplorer:
                 st.stop()
         else:
             st.error(f"combined.csv not found in {save_path}")
-            st.error("Please run generate_clusters.py to generate cluster info")
+            st.error("Please run 'open-clio generate' to generate cluster info")
             st.stop()
 
         # Figure out how many levels exist and load level_{x}_cluster csvs

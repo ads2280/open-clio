@@ -4,7 +4,6 @@ import asyncio
 import json
 import os
 import streamlit.web.cli as stcli
-from open_clio.generate import generate_clusters
 from open_clio.extend import main as extend_main
 
 
@@ -13,19 +12,7 @@ def load_config(config_path=None):
         config_path = "./config.json"
     with open(config_path, "r") as f:
         config = json.load(f)
-
     return config
-
-
-def run_generate(config):
-    print("Starting Clio clustering pipeline...")
-    print(f"Dataset: {config['dataset_name']}")
-    print(f"Hierarchy (number of examples at each level): {config['hierarchy']}\n")
-    print(f"Current working directory: {os.getcwd()}")
-
-    asyncio.run(generate_clusters(**config))
-    print("Clustering complete!")
-
 
 def run_generate_langgraph(config):
     print("Starting Clio clustering pipeline with LangGraph...")
@@ -104,7 +91,6 @@ def main():
         epilog="""
 examples:
   open-clio generate --config config.json    # generate clustering and launch visualization
-  open-clio langgraph --config config.json   # generate clustering with LangGraph and launch visualization
   open-clio viz --config config.json         # launch visualization only
   open-clio evaluate --config config.json    # run evaluation on generated clusters
   open-clio extend --config config.json      # extend existing clusters with new examples
@@ -116,8 +102,8 @@ For more information, see the README or visit the project repository.
     parser.add_argument(
         "action",
         nargs="?",
-        choices=["generate", "langgraph", "evaluate", "viz", "extend"],
-        help="Action to perform (generate: clustering + viz, langgraph: langgraph clustering + viz, evaluate: run metrics, viz: visualization only, extend: add new examples to existing clusters)",
+        choices=["generate", "evaluate", "viz", "extend"], 
+        help="Action to perform (generate: clustering + viz, evaluate: run metrics, viz: visualization only, extend: add new examples to existing clusters)",
     )
     parser.add_argument(
         "--config",
@@ -133,10 +119,7 @@ For more information, see the README or visit the project repository.
 
     config = load_config(args.config)
 
-    if args.action == "generate":
-        run_generate(config)
-        run_viz(config)
-    elif args.action == "langgraph":
+    if args.action == "generate":  # changed for langgraph
         run_generate_langgraph(config)
         run_viz(config)
     elif args.action == "evaluate":

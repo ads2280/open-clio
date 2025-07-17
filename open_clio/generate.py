@@ -975,9 +975,9 @@ def cluster_partition_examples(
 
 
 def save_results(all_updates, combined_hierarchy, save_path=None):
-    # print results summary
     if save_path is None:
         save_path = "./clustering_results"
+    # print results summary
     logger.info("Overview of clustering results:")
     print("\nClustering results:")
 

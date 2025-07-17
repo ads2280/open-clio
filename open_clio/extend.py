@@ -486,8 +486,11 @@ def update_cluster_files(cluster_updates, save_path):
         df.to_csv(updated_level_file, index=False)
 
 
-async def main(dataset_name, save_path="./clustering_results", sample=None):
+async def main(dataset_name, save_path=None, sample=None):
     """Main orchestration function for extending existing clustering results."""
+
+    if save_path is None:
+        save_path = "./clustering_results"
 
     existing_data = load_hierarchy(save_path)
     new_examples = load_examples(dataset_name, sample)
