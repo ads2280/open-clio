@@ -27,23 +27,52 @@ import uuid
 import time
 import numpy as np
 import operator
+import json
+from pathlib import Path
+import asyncio
+import os
+import pandas as pd
+from collections import defaultdict
 
 DEFAULT_SUMMARY_PROMPT = """summarize por favor: {{example}}"""
 
 logger = getLogger(__name__)
 
-
 def merge_dict(l: dict, r: dict) -> dict:
     return {**l, **r}
-
 
 class ClusterState(TypedDict):
     partition: str
     hierarchy: list[int]
-    clusters: dict[int, dict]  # Remove merge_dict annotation to prevent accumulation
-    examples: list[ls_schemas.Example]
+    clusters: Annotated[dict[int, dict], merge_dict]  
+    examples: list[ls_schemas.Example]  
     summaries: Annotated[list[ExampleSummary], lambda l, r: l + r]
     total_examples: int
+    proposed_clusters: list[str] | None
+    deduplicated_clusters: list[str] | None
+    current_level: int
+    # for parallel assign_single_cluster
+    cluster_id: int | None
+    cluster_info: dict | None
+    deduplicated: list[str] | None
+    # for parallel rename_cluster_group
+    hl_name: str | None
+    member_cluster_ids: list | None
+    member_cluster_infos: dict | None
+    level: int | None
+    # for gen neighborhoods
+    neighborhood_labels: list[int] | None
+    target_clusters: int | None
+    # results from this level needed for next
+    cluster_assignments: Annotated[dict, merge_dict]
+    parent_clusters: Annotated[dict, merge_dict]
+    # Track all clusters by level
+    all_clusters_by_level: Annotated[dict, merge_dict]
+
+class ClusterStateOutput(TypedDict):
+    partition: str
+    hierarchy: list[int]
+    clusters: Annotated[dict[int, dict], merge_dict]  
     proposed_clusters: list[str] | None
     deduplicated_clusters: list[str] | None
     current_level: int
@@ -74,22 +103,21 @@ def prepare_next_level(state: ClusterState) -> dict:
     print(
         f"Preparing next level: {state['current_level']} -> {state['current_level'] + 1}"
     )
-    print(f"parent_clusters count: {len(state.get('parent_clusters', {}))}")
-    print(f"parent_clusters keys: {list(state.get('parent_clusters', {}).keys())}")
-    print(
-        f"Clearing cluster_assignments. Old keys: {list(state.get('cluster_assignments', {}).keys())}"
-    )
 
     # save level n clusters before moving to level n+1
     current_level_clusters = {f"level_{state['current_level']}": state["clusters"]}
     existing_clusters = state.get("all_clusters_by_level", {})
     updated_clusters = {**existing_clusters, **current_level_clusters}
 
-    # Clear all the old state
+    if state["current_level"] == 0:
+        next_clusters = state["clusters"]
+    else:
+        next_clusters = state["parent_clusters"]
+
     return {
-        "clusters": state["parent_clusters"],
+        "clusters": next_clusters,
         "current_level": state["current_level"] + 1,
-        "all_clusters_by_level": updated_clusters,  # prev was overwriting, need to accumulate
+        "all_clusters_by_level": updated_clusters,
         "cluster_assignments": {},
         "parent_clusters": {},
         "proposed_clusters": None,
@@ -124,12 +152,16 @@ def base_cluster(state: ClusterState) -> dict:
     curr_level = 0
 
     total_examples = len(state["summaries"])
-    ratio = total_examples / state.get("total_examples", total_examples)
-    scaled_hierarchy = [int(round(k * ratio)) for k in state["hierarchy"]]
+    full_total_examples = state.get("total_examples", total_examples)
+    
+    if total_examples < full_total_examples:
+        ratio = total_examples / full_total_examples
+        partition_k = int(round(state["hierarchy"][0] * ratio))
+    else:
+        partition_k = state["hierarchy"][0]
 
-    curr_k = scaled_hierarchy[curr_level]  # k for this partition at this level
     cluster_list = perform_base_clustering(
-        state["summaries"], curr_k, state["partition"]
+        state["summaries"], partition_k, state["partition"]
     )
     # need to track cluster IDs so switching to dict
     clusters = {cluster["id"]: cluster for cluster in cluster_list}
@@ -165,10 +197,18 @@ def generate_neighborhoods_step(state: ClusterState) -> dict:
     print(f"Generating neighborhoods for level {state['current_level']}")
     curr_level = state["current_level"]
 
-    # For hierarchical clustering, use the original hierarchy values
+    # For hierarchical clustering, scale the hierarchy for partitions
     # The base level (level 0) is handled by base_cluster function
     # When we reach generate_neighborhoods_step, we're already at level 1+
-    target_clusters = state["hierarchy"][curr_level]
+    total_examples = len(state["summaries"])
+    full_total_examples = state.get("total_examples", total_examples)
+    
+    if total_examples < full_total_examples:
+        ratio = total_examples / full_total_examples
+        target_clusters = int(round(state["hierarchy"][curr_level] * ratio))
+    else:
+        # this is the full dataset, use hierarchy[curr_level] directly
+        target_clusters = state["hierarchy"][curr_level]
 
     cluster_embeddings = []
     cluster_ids = []
@@ -339,10 +379,10 @@ def map_rename_clusters(state: ClusterState) -> list[Send]:
     # fixes an error where we try to rename a cluster that doesn't exist at this level
     valid_assignments = {k: v for k, v in assignments.items() if k in current_clusters}
 
-    if len(valid_assignments) != len(assignments):
-        print(
-            f"WARNING: Filtered out {len(assignments) - len(valid_assignments)} assignments for clusters not in current level"
-        )
+    #if len(valid_assignments) != len(assignments):
+    #    print(
+    #        f"WARNING: Filtered out {len(assignments) - len(valid_assignments)} assignments for clusters not in current level"
+    #    )
 
     cluster_groups = {}
     for cluster_id, assigned_hl in valid_assignments.items():
@@ -469,14 +509,42 @@ def should_continue(
         return "save_final_level"
 
 
+def after_base_cluster(
+    state: ClusterState,
+) -> Literal["prepare_next_level", "save_final_level"]:
+    """
+    After base clustering, decide whether to:
+    - Save and end (if only 1 level in hierarchy)
+    - Move to next level for hierarchical clustering (if multiple levels)
+    """
+    current_level = state["current_level"]
+    print(f"After base clustering: current={current_level}, hierarchy={state['hierarchy']}")
+    
+    if len(state["hierarchy"]) == 1:
+        print("Only base level in hierarchy, saving final results")
+        return "save_final_level"
+    else:
+        print("Multiple levels in hierarchy, moving to next level for hierarchical clustering")
+        return "prepare_next_level"
+
+
 def save_final_level(state: ClusterState) -> dict:
     # because this doesn't go through prepare_next_level()
     print(f"Saving final level clusters for level {state['current_level']}")
-    final_level_clusters = {f"level_{state['current_level']}": state["clusters"]}
-    return {"all_clusters_by_level": final_level_clusters}
+    
+    # If we're at level 0 and there's only one level in hierarchy, save base clusters
+    # Otherwise save parent_clusters (higher-level clusters)
+    if state['current_level'] == 0 and len(state['hierarchy']) == 1:
+        final_level_clusters = {f"level_{state['current_level']}": state["clusters"]}
+    else:
+        final_level_clusters = {f"level_{state['current_level']}": state["parent_clusters"]}
+    
+    return {
+        "all_clusters_by_level": final_level_clusters,
+    }
 
 
-cluster_builder = StateGraph(ClusterState)
+cluster_builder = StateGraph(ClusterState, output_schema=ClusterStateOutput)
 cluster_builder.add_node(base_cluster)
 cluster_builder.add_node(embed)
 cluster_builder.add_node(generate_neighborhoods_step)
@@ -490,7 +558,9 @@ cluster_builder.add_node(prepare_next_level)
 cluster_builder.add_node(save_final_level)
 
 cluster_builder.set_entry_point("base_cluster")
-cluster_builder.add_edge("base_cluster", "embed")
+cluster_builder.add_conditional_edges(
+    "base_cluster", after_base_cluster, ["prepare_next_level", "save_final_level"]
+)
 cluster_builder.add_edge("embed", "generate_neighborhoods_step")
 cluster_builder.add_edge("generate_neighborhoods_step", "propose_clusters")
 cluster_builder.add_edge("propose_clusters", "dedup_clusters")
@@ -537,8 +607,6 @@ def load_examples(state: State) -> dict:
     print(f"load_examples: hierarchy = {hierarchy}")
 
     if not hierarchy:
-        logger.error("hierarchy is empty!")
-        print("hierarchy is empty!")
         raise ValueError("hierarchy cannot be empty")
 
     if partitions is not None:
@@ -570,17 +638,15 @@ def load_examples(state: State) -> dict:
 
 
 # TODO figure out how to tqdm with langgraph
-
-
 async def summarize(state: State) -> dict:
     example = state["example"]
-    print(f"Processing example {example.id}")  # debug
+    # print(f"Processing example {example.id}")  # debug
     summary = await summarize_example(
         example,
         state["partitions"],
         state.get("summary_prompt", DEFAULT_SUMMARY_PROMPT),
     )
-    print(f"summary: {summary}")  # debug
+    # print(f"summary: {summary}")  # debug
     return {"summaries": [summary]}
 
 
@@ -671,19 +737,188 @@ async def run_graph(
     )
     return results
 
-
-import json
-from pathlib import Path
-import asyncio
-
 CONFIG_PATH = (
-    Path(__file__).parents[1] / "configs/3_level.json"
+    Path(__file__).parents[1] / "configs/easy_config.json" #TODO
 )  # edited for anika's local
+
+def save_langgraph_results(results, save_path=None): # TODO 
+    if save_path is None:
+        save_path = "./clustering_results"
+    
+    print("\nClustering results:")
+    os.makedirs(save_path, exist_ok=True)
+    
+    # 1. combined.csv: save examples with clustering info
+    print(f"\nSaving results to {save_path}...")
+    examples_data = []
+    
+    # Get examples from the original state, not from cluster partition results
+    # to avoid duplication when multiple partitions are processed
+    examples = results.get("examples", [])
+    summaries = results.get("summaries", [])
+    
+    print(f"Debug: Found {len(examples)} examples and {len(summaries)} summaries in results")
+    
+    summary_map = {summary["example_id"]: summary for summary in summaries if summary}
+    
+    # langgraph doesn't track example-to-cluster assignments directly
+    # adding that would make this a lot shorter
+    example_assignments = {}
+    
+    # Get all clusters from results
+    all_clusters = results.get("all_clusters_by_level", {})
+    
+    # Process each level to build cluster assignments
+    for level_key, level_clusters in all_clusters.items():
+        level_num = int(level_key.split("_")[1])
+        
+        if level_num == 0:
+            # Base level - examples are directly in the cluster
+            for cluster_id, cluster_info in level_clusters.items():
+                if "examples" in cluster_info:
+                    for example_id in cluster_info["examples"]:
+                        if example_id not in example_assignments:
+                            example_assignments[example_id] = {}
+                        example_assignments[example_id][level_key] = {
+                            "id": str(cluster_id),
+                            "name": cluster_info.get("name", "")
+                        }
+        else:
+            # Higher levels - need to trace back through member_clusters
+            # For each member cluster, find examples that belong to it.
+            for cluster_id, cluster_info in level_clusters.items():
+                if "member_clusters" in cluster_info:
+                    member_cluster_ids = cluster_info["member_clusters"]
+                    for member_cluster_id in member_cluster_ids:
+                        prev_level_key = f"level_{level_num - 1}"
+                        if prev_level_key in all_clusters:
+                            prev_cluster_info = all_clusters[prev_level_key].get(member_cluster_id)
+                            if prev_cluster_info and "examples" in prev_cluster_info:
+                                for example_id in prev_cluster_info["examples"]:
+                                    if example_id not in example_assignments:
+                                        example_assignments[example_id] = {}
+                                    example_assignments[example_id][level_key] = {
+                                        "id": str(cluster_id),
+                                        "name": cluster_info.get("name", "")
+                                    }
+    
+    # Process each example - get base cluster info, intermediate levels, top level
+    for example in examples:
+        example_id = example.id
+        summary = summary_map.get(example_id)
+        
+        if not summary:
+            continue
+            
+        clustering = example_assignments.get(example_id, {})
+        base_cluster_id = clustering.get("level_0", {}).get("id", None)
+        base_cluster_name = clustering.get("level_0", {}).get("name", "")
+        
+        intermediate_clusters = {}
+        for level_key in clustering.keys():
+            if level_key != "level_0":
+                level_num = level_key.split("_")[1]
+                intermediate_clusters[f"level_{level_num}_id"] = clustering[level_key].get("id", None)
+                intermediate_clusters[f"level_{level_num}_name"] = clustering[level_key].get("name", "")
+        
+        # Get top level info (highest level reached)
+        max_level = max([int(k.split("_")[1]) for k in clustering.keys()]) if clustering else 0
+        top_level_key = f"level_{max_level}"
+        if top_level_key in clustering:
+            top_cluster_id = clustering[top_level_key]["id"]
+            top_cluster_name = clustering[top_level_key]["name"]
+        elif "level_0" in clustering:
+            top_cluster_id = clustering["level_0"].get("id", None)
+            top_cluster_name = clustering["level_0"].get("name", "")
+        else:
+            top_cluster_id = None
+            top_cluster_name = ""
+        
+        full_example = ""
+        if hasattr(example, 'inputs') and example.inputs:
+            if isinstance(example.inputs, dict):
+                input_parts = []
+                for key, value in example.inputs.items():
+                    if isinstance(value, str) and value.strip():
+                        input_parts.append(f"{key}: {value}")
+                full_example = "\n".join(input_parts)
+            elif isinstance(example.inputs, str):
+                full_example = example.inputs
+        else:
+            full_example = summary["summary"]  # Fallback to summary
+        
+        row_data = {
+            "example_id": example_id,
+            "full_example": full_example,
+            "summary": summary["summary"],
+            "partition": summary["partition"],
+            "base_cluster_id": base_cluster_id,
+            "base_cluster_name": base_cluster_name,
+        }
+        
+        row_data.update(intermediate_clusters)
+        
+        row_data.update({
+            "top_cluster_id": top_cluster_id,
+            "top_cluster_name": top_cluster_name,
+        })
+        
+        examples_data.append(row_data)
+    
+    examples_df = pd.DataFrame(examples_data)
+    examples_df.to_csv(f"{save_path}/combined.csv", index=False)
+    print(f"Saved {len(examples_data)} examples to combined.csv")
+    
+    # 2. csv by level: Save ALL clusters from ALL levels
+    all_clusters_by_level = {"level_0": [], "level_1": [], "level_2": []}
+    
+    total_clusters = 0
+    for level_key, level_clusters in all_clusters.items():
+        if level_key not in all_clusters_by_level:
+            all_clusters_by_level[level_key] = []
+            
+        for cluster_id, cluster_data in level_clusters.items():
+            total_clusters += 1
+            
+            row = {
+                "cluster_id": str(cluster_id),
+                "name": cluster_data.get("name", ""),
+                "description": cluster_data.get("description", ""),
+                "size": cluster_data.get("size", 0),
+                "partition": cluster_data.get("partition", "Default"),
+            }
+            
+            if "total_size" in cluster_data:
+                row["total_size"] = cluster_data["total_size"]
+            if "member_clusters" in cluster_data:
+                member_uuids = cluster_data["member_clusters"]
+                if isinstance(member_uuids, list):
+                    row["member_clusters"] = str([str(uuid) for uuid in member_uuids])
+                else:
+                    row["member_clusters"] = str(member_uuids)
+            
+            all_clusters_by_level[level_key].append(row)
+    
+    # Save each level
+    for level_name, cluster_list in all_clusters_by_level.items():
+        if not cluster_list:
+            continue
+        
+        df = pd.DataFrame(cluster_list)
+        df = df.sort_values("size", ascending=False)
+        output_path = f"{save_path}/{level_name}_clusters.csv"
+        df.to_csv(output_path, index=False)
+        print(f"Saved {len(cluster_list)} clusters to {level_name}_clusters.csv")
+    
+    print(f"Results saved to {save_path}/")
 
 if __name__ == "__main__":
     with open(CONFIG_PATH, "r") as f:
         config = json.load(f)
     results = asyncio.run(run_graph(**config))
+
+    # Save results in the same format as generate.py
+    save_langgraph_results(results, save_path="./langgraph_clustering_results")
 
     # Print all results
     all_clusters = results.get("all_clusters_by_level", {})
@@ -691,3 +926,4 @@ if __name__ == "__main__":
         level_clusters = all_clusters[level_key]
         print(f"\n{level_key.upper()}: {len(level_clusters)} clusters")
         print(level_clusters)
+
