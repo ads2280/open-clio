@@ -4,7 +4,6 @@ import asyncio
 import json
 import os
 import streamlit.web.cli as stcli
-from open_clio.extend import main as extend_main
 
 
 def load_config(config_path=None):
@@ -13,6 +12,7 @@ def load_config(config_path=None):
     with open(config_path, "r") as f:
         config = json.load(f)
     return config
+
 
 def run_generate_langgraph(config):
     print("Starting Clio clustering pipeline with LangGraph...")
@@ -68,7 +68,7 @@ def run_evaluate(config):
 
 
 def run_extend(config):
-    print("Starting cluster extension pipeline...")
+    print("Starting cluster extension pipeline with LangGraph...")
 
     save_path = config.get("save_path", "./clustering_results")
     dataset_name = config.get("dataset_name")
@@ -78,10 +78,15 @@ def run_extend(config):
     print(f"Loading new examples from dataset: {dataset_name}")
     print(f"Examples limit: {sample}")
 
-    asyncio.run(extend_main(dataset_name, save_path, sample))
+    from open_clio.extend_langgraph import run_graph
+
+    results = asyncio.run(run_graph(dataset_name, save_path, sample))
 
     print(
-        f"\n\nExtension complete! Run open-clio viz to explore the extended clusters, or see updated csv files in the {save_path} directory"
+        f"Extension complete! Processed {results.get('processed_count', 0)} examples, skipped {results.get('skipped_count', 0)} previously clustered examples"
+    )
+    print(
+        f"Run open-clio viz to explore the extended clusters, or see updated csv files in the {save_path} directory"
     )
 
 
@@ -102,7 +107,7 @@ For more information, see the README or visit the project repository.
     parser.add_argument(
         "action",
         nargs="?",
-        choices=["generate", "evaluate", "viz", "extend"], 
+        choices=["generate", "evaluate", "viz", "extend"],
         help="Action to perform (generate: clustering + viz, evaluate: run metrics, viz: visualization only, extend: add new examples to existing clusters)",
     )
     parser.add_argument(

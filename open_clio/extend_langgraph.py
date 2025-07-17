@@ -10,7 +10,6 @@ from open_clio.extend import (
     extend_results,
 )
 
-# TODO test this, on chat-langchain? increase sample to 105 or sth.
 
 class ExtendState(TypedDict):
     # configs
@@ -55,8 +54,10 @@ def load_examples_node(state: ExtendState) -> dict:
         "processed_count": processed_count,
     }
 
+
 # def filter_new_examples(state: ExtendState) -> dict:
 # don't need anymore bc its in load_example
+
 
 # main part to parallelize
 def map_assign_examples(state: ExtendState) -> list[Send]:
@@ -74,7 +75,7 @@ def map_assign_examples(state: ExtendState) -> list[Send]:
 
 async def assign_single_example(
     state: ExtendState,
-) -> dict:  # took out expected partition param
+) -> dict:
     example = state["example"]
     existing_data = state["existing_data"]
     # where the magic happens
@@ -125,8 +126,3 @@ async def run_graph(dataset_name: str, save_path: str, sample: int | None = None
         },
     )
     return results
-
-
-if __name__ == "__main__":
-    results = asyncio.run(run_graph("unthread-data", "./easy_config_results", 10))
-    print(f"Results: {results}")
