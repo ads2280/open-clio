@@ -15,7 +15,7 @@ uv pip install -e .
 Also make sure you have valid LangSmith and Anthropic API keys in your environment.
 
 ### 2. Set up your configuration
-Choose a dataset to run Clio clustering on and create a `config.json` file, or skip this step and test with `configs/chat_langchain.json` or `configs/customer_support.json`.
+Choose a dataset to run Clio clustering on and create a `config.json` file, or skip this step and test with `configs/customer_support.json` or `configs/chat_langchain.json`.
 ```json
 {
     "dataset_name": "chat-langchain-v3-selected",
@@ -58,7 +58,7 @@ You can also explore the output files in `save_path` for a quick overview of clu
 
 This example is pre-configured for a dataset of customer support conversations:
 
-1. **Run**: `open-clio generate --config example_config.json` 
+1. **Run**: `open-clio generate --config configs/customer_support.json` 
 2. **Explore**: The web interface shows clusters like:
    - "Collect financial invoices and receipts from business organizations for accounting record management"
    - "Manage enterprise SaaS platform operations"
