@@ -285,7 +285,7 @@ def main(config_dict=None):
         data=client.list_examples(dataset_name=dataset_name, limit=sample_limit),
         evaluators=prepare_evaluators(),
         summary_evaluators=[unique_n_summary_evaluator],
-        experiment_prefix=f"cluster-evals",
+        experiment_prefix="cluster-evals",
         description=f"Evals to measure the quality of Clio clusters for {dataset_name}.",
         max_concurrency=2,
     )

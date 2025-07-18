@@ -4,8 +4,6 @@ import asyncio
 import json
 import os
 import streamlit.web.cli as stcli
-from open_clio.generate import generate_clusters
-from open_clio.extend import main as extend_main
 
 
 def load_config(config_path=None):
@@ -13,23 +11,42 @@ def load_config(config_path=None):
         config_path = "./config.json"
     with open(config_path, "r") as f:
         config = json.load(f)
-
     return config
 
 
-def run_generate(config):
-    print("Starting Clio clustering pipeline...")
+def run_generate_langgraph(config):
+    print("Starting Clio clustering pipeline with LangGraph...")
     print(f"Dataset: {config['dataset_name']}")
     print(f"Hierarchy (number of examples at each level): {config['hierarchy']}\n")
     print(f"Current working directory: {os.getcwd()}")
 
-    asyncio.run(generate_clusters(**config))
-    print("Clustering complete!")
+    from open_clio.generate_langgraph import run_graph, save_langgraph_results
+
+    dataset_name = config["dataset_name"]
+    hierarchy = config["hierarchy"]
+    summary_prompt = config.get("summary_prompt", "summarize por favor: {{example}}")
+    save_path = config.get("save_path", "./clustering_results")
+    partitions = config.get("partitions")
+    sample = config.get("sample")
+    max_concurrency = config.get("max_concurrency", 10)
+
+    results = asyncio.run(
+        run_graph(
+            dataset_name=dataset_name,
+            hierarchy=hierarchy,
+            summary_prompt=summary_prompt,
+            save_path=save_path,
+            partitions=partitions,
+            sample=sample,
+            max_concurrency=max_concurrency,
+        )
+    )
+
+    save_langgraph_results(results, save_path)
 
 
 def run_viz(config):
-    print("Starting Clio visualization...")
-    # Extract the specific values that viz needs and pass them as environment variables
+    print("Launching cluster visualization...")
     save_path = config.get("save_path", "./clustering_results")
     dataset_name = config.get("dataset_name")
     partitions = config.get("partitions")
@@ -51,19 +68,26 @@ def run_evaluate(config):
 
 
 def run_extend(config):
-    print("Starting cluster extension pipeline...")
-    
+    print("Starting cluster extension pipeline with LangGraph...")
+
     save_path = config.get("save_path", "./clustering_results")
     dataset_name = config.get("dataset_name")
-    sample = config.get("sample", None)  
-    
+    sample = config.get("sample", None)
+
     print(f"Loading existing hierarchy from: {save_path}")
     print(f"Loading new examples from dataset: {dataset_name}")
     print(f"Examples limit: {sample}")
-    
-    asyncio.run(extend_main(dataset_name, save_path, sample))
-    
-    print(f"\n\nExtension complete! Run open-clio viz to explore the extended clusters, or see updated csv files in the {save_path} directory")
+
+    from open_clio.extend_langgraph import run_graph
+
+    results = asyncio.run(run_graph(dataset_name, save_path, sample))
+
+    print(
+        f"Extension complete! Processed {results.get('processed_count', 0)} examples, skipped {results.get('skipped_count', 0)} previously clustered examples"
+    )
+    print(
+        f"Run open-clio viz to explore the extended clusters, or see updated csv files in the {save_path} directory"
+    )
 
 
 def main():
@@ -100,8 +124,8 @@ For more information, see the README or visit the project repository.
 
     config = load_config(args.config)
 
-    if args.action == "generate":
-        run_generate(config)
+    if args.action == "generate":  # changed for langgraph
+        run_generate_langgraph(config)
         run_viz(config)
     elif args.action == "evaluate":
         run_evaluate(config)
