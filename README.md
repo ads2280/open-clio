@@ -108,7 +108,7 @@ Your hierarchy defines how many levels to create and how many clusters to create
 - Each level should have fewer clusters than the previous
 - Match top-level count to your partition count (if using partitions)
 
-**For 100 examples:** Try `[10, 3]`
+**For 100 examples:** Try `[16, 5]`
 
 ### Evaluate clusters
 
