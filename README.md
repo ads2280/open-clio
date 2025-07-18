@@ -15,13 +15,15 @@ uv pip install -e .
 Also make sure you have valid LangSmith and Anthropic API keys in your environment.
 
 ### 2. Set up your configuration
-Choose a dataset to run Clio clustering on and create a `config.json` file, or skip this step and test with `example_config.json`.
+Choose a dataset to run Clio clustering on and create a `config.json` file, or skip this step and test with `configs/chat_langchain.json` or `configs/customer_support.json`.
 ```json
 {
-    "dataset_name": "your-langsmith-dataset-name",
-    "hierarchy": [15, 8, 3],
-    "summary_prompt": "Summarize what the user is asking the AI to help with. Focus on the main task or request.",
-    "save_path": "./clustering_results",
+    "dataset_name": "chat-langchain-v3-selected",
+    "hierarchy": [14, 6],
+    "summary_prompt": "Summarize this example: {{example}}",
+    "save_path": "./chat_langchain_results",
+    "sample": 100,
+    "partitions": null
 }
 ```
 
