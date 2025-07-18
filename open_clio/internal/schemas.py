@@ -7,6 +7,10 @@ class ExampleSummary(TypedDict):
     summary: str
     category: NotRequired[str]
 
+class RunSummary(TypedDict):
+    run_id: str | uuid.UUID
+    summary: str
+    partition: NotRequired[str]
 
 class ClusterInfo(TypedDict):
     name: str
@@ -16,3 +20,4 @@ class ClusterInfo(TypedDict):
     example_ids: list[str | uuid.UUID]
     category: str
     id: uuid.UUID
+

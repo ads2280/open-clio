@@ -33,6 +33,7 @@ import asyncio
 import os
 import pandas as pd
 from collections import defaultdict
+from datetime import datetime
 
 DEFAULT_SUMMARY_PROMPT = """summarize por favor: {{example}}"""
 
@@ -548,9 +549,12 @@ cluster_builder.add_edge("prepare_next_level", "embed")
 cluster_builder.add_edge("save_final_level", "__end__")
 cluster_graph = cluster_builder.compile()
 
-
+# need to set these un run_graph
 class State(TypedDict):
-    dataset_name: str
+    dataset_name: str | None
+    project_name: str | None
+    start_time: str | None
+    end_time: str | None
     sample: int | float | None
     hierarchy: Annotated[list[int], operator.add]
     partitions: dict | None
@@ -561,11 +565,15 @@ class State(TypedDict):
     clusters: Annotated[dict, merge_dict]
     all_clusters_by_level: Annotated[dict, merge_dict]
 
-
-def load_examples(state: State) -> dict:
+# ideally this is the only thing to change
+# it is - ids are the same, basically just cast them to example objects
+# anika - bagatur changed, just treat everything as'examples', so from runs just include id, inputs, outputs then this should be stragihtoward
+def load_examples_or_runs(state: State) -> dict:
     partitions = state["partitions"]
     hierarchy = state["hierarchy"]
-    dataset_name = state["dataset_name"]
+    # lets assume its all perfectly orchestrated in main
+    dataset_name = state.get("dataset_name")
+    project_name = state.get("project_name")
 
     if not hierarchy:
         raise ValueError("hierarchy cannot be empty")
@@ -580,26 +588,69 @@ def load_examples(state: State) -> dict:
             )
 
     client = Client()
-    examples = list(
-        client.list_examples(
-            dataset_name=dataset_name,
-            limit=state["sample"] if state.get("sample") else None,
-        )
-    )
-    total_examples = len(examples)
+    if dataset_name:
+        examples = [x.dict() for x in 
+            client.list_examples(
+                dataset_name=dataset_name,
+                limit=state["sample"] if state.get("sample") else 1000,
+                order="random"
+            )
+        ]
+        total_examples = len(examples)
+    elif project_name:
+        # Convert string timestamps to datetime objects if provided
+        start_time_dt = None
+        end_time_dt = None
+        
+        if state.get("start_time"):
+            try:
+                start_time_dt = datetime.fromisoformat(state["start_time"])
+            except ValueError as e:
+                logger.warning(f"Invalid start_time format: {state['start_time']}. Expected ISO format. Error: {e}")
+                start_time_dt = None
+        
+        if state.get("end_time"):
+            try:
+                end_time_dt = datetime.fromisoformat(state["end_time"])
+            except ValueError as e:
+                logger.warning(f"Invalid end_time format: {state['end_time']}. Expected ISO format. Error: {e}")
+                end_time_dt = None
+        
+        # Create a simple wrapper class to provide .dict() and .id methods
+        class RunWrapper:
+            def __init__(self, run_dict):
+                self._data = run_dict
+                self.id = run_dict.get("id")
+            
+            def dict(self):
+                return self._data
+        
+        examples = [RunWrapper(x.dict(include={"id", "inputs", "outputs"})) for x in 
+            client.list_runs(
+                project_name=state["project_name"],
+                limit=state["sample"] if state.get("sample") else 1000,
+                start_time=start_time_dt,
+                end_time=end_time_dt,
+                # TODO add these to state
+            )
+            # set artificial limit of 1000, can rm later
+        ]
+        total_examples = len(examples)
+    else:
+        raise ValueError("Either dataset_name or project_name must be provided")
+    
     validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
 
     print(f"\nProcessing {total_examples} examples across the following partitions:")
     return {"total_examples": total_examples, "examples": examples}
 
 
-# TODO figure out how to tqdm with langgraph
 async def summarize(state: State) -> dict:
     example = state["example"]
     summary = await summarize_example(
-        example,
         state["partitions"],
         state.get("summary_prompt", DEFAULT_SUMMARY_PROMPT),
+        example,
     )
     return {"summaries": [summary]}
 
@@ -649,15 +700,15 @@ def map_partitions(state: State) -> list[Send]:
 
 
 partitioned_cluster_builder = StateGraph(State)
-partitioned_cluster_builder.add_node(load_examples)
+partitioned_cluster_builder.add_node(load_examples_or_runs)
 partitioned_cluster_builder.add_node(summarize)
 partitioned_cluster_builder.add_node("cluster_partition", cluster_graph)
 partitioned_cluster_builder.add_node("aggregate_summaries", {})
 # partitioned_cluster_builder.add_node("aggregate_summaries", lambda x: x)
 
-partitioned_cluster_builder.set_entry_point("load_examples")
+partitioned_cluster_builder.set_entry_point("load_examples_or_runs") #anika  - edited
 partitioned_cluster_builder.add_conditional_edges(
-    "load_examples", map_summaries, ["summarize"]
+    "load_examples_or_runs", map_summaries, ["summarize"]
 )
 partitioned_cluster_builder.add_edge("summarize", "aggregate_summaries")
 partitioned_cluster_builder.add_conditional_edges(
@@ -668,18 +719,24 @@ partitioned_cluster_graph = partitioned_cluster_builder.compile()
 
 
 async def run_graph(
-    dataset_name: str,
     hierarchy: list,
     summary_prompt: str,
     *,
+    dataset_name: str | None = None,
+    project_name: str | None = None, 
+    start_time: str | None = None,
+    end_time: str | None = None,
     save_path: str | None = None,
     partitions: dict | None = None,
-    sample: int | None = None,
+    sample: int | None = None, # anika - no sampling rate for now
     max_concurrency: int = DEFAULT_SUMMARIZATION_CONCURRENCY,
 ):
     results = await partitioned_cluster_graph.ainvoke(
         {
             "dataset_name": dataset_name,
+            "project_name": project_name,
+            "start_time": start_time,
+            "end_time": end_time,
             "hierarchy": hierarchy,
             "partitions": partitions,
             "sample": sample,

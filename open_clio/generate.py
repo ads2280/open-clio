@@ -11,6 +11,7 @@ from tqdm import tqdm
 from open_clio.internal.utils import gated_coro
 from open_clio.internal import schemas
 
+from langchain_core.prompts import ChatPromptTemplate
 from langchain.chat_models import init_chat_model
 from langchain.embeddings import init_embeddings
 import numpy as np
@@ -43,10 +44,9 @@ llm = init_chat_model(
     configurable_fields=("temperature", "max_tokens", "model"),
 )
 
-
 async def summarize_example(
-    example: ls_schemas.Example, partitions: dict[str, str], summary_prompt: str
-) -> schemas.ExampleSummary | None:
+    partitions: dict[str, str], summary_prompt: str, example: dict
+) -> schemas.ExampleSummary | schemas.RunSummary | None:
     """Use an LLM to generate a summary for a single example."""
 
     class ResponseFormatter(BaseModel):
@@ -57,11 +57,6 @@ async def summarize_example(
             description=f"The main product partition this support request belongs to. Must be one of: {list(partitions.keys()) if partitions else ['Default']}"
         )
 
-    # Create structured LLM here
-    structured_llm = llm.with_structured_output(ResponseFormatter)
-
-    conversation_text = str(example.inputs)
-
     # If no partitions provided, all in same partition
     if not partitions:
         partitions_str = (
@@ -70,49 +65,36 @@ async def summarize_example(
     else:
         partitions_str = "\n".join(f"- {k}: {v}" for k, v in partitions.items())
 
+    # create structured LLM here
+    structured_llm = llm.with_structured_output(ResponseFormatter, include_raw=True)
     summary_prompt_w_partitions = SUMMARIZE_INSTR.format(
         summary_prompt=summary_prompt, partitions=partitions_str
     )
 
-    messages = [
-        {
-            "role": "user",
-            "content": f"The following is a conversation between an AI assistant and a user:\n\n{conversation_text}",
-        },
-        {
-            "role": "assistant",
-            "content": "I understand.",
-        },
-        {
-            "role": "user",
-            "content": f"{summary_prompt_w_partitions}",
-        },
-        {
-            "role": "assistant",
-            "content": "Sure, I'll analyze this conversation and provide a structured summary: <answer>",
-        },
-    ]
+    prompt = ChatPromptTemplate([
+        {"role": "system", "content": "Summarize this example:"},
+        {"role": "user", "content": summary_prompt_w_partitions},
+        ],
+        template_format="mustache"
+    )
 
-    try:
-        response = await structured_llm.ainvoke(messages)
+    chain = prompt | structured_llm
 
-        res = response.summary
-        partition = response.partition
-
-    except Exception as e:
-        logger.error(f"Error processing example {example.id}: {e}")
-        try:
-            raw_response = await llm.ainvoke(messages)
-            logger.error(
-                f"Raw LLM response (before parsing) for example {example.id}: {raw_response}"
-            )
-        except Exception as raw_e:
-            logger.error(
-                f"Could not get raw response for example {example.id}: {raw_e}"
-            )
+    # anika - also need to add sampling rate_etc. to config, do checks for that in main.
+# anika - bagatur changed, just treat everything as'examples', so from runs just include id, inputs, outputs then this should be stragihtoward
+    result = await chain.ainvoke({"example": example.dict()})
+    if result["parsed"]:
+        return {
+            "summary": result["parsed"].summary,
+            "partition": result["parsed"].partition,
+            "example_id": example.id 
+        }
+    else:
+        print(f"Error parsing example {example.id}: {result}")
         return None
 
-    return {"summary": res, "partition": partition, "example_id": example.id}
+    # how to make sure they give mustache
+    # return {"summary": res, "partition": partition, "example_id": example.id} or project_id if run!!!
 
 
 def perform_base_clustering(

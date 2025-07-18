@@ -16,13 +16,17 @@ def load_config(config_path=None):
 
 def run_generate_langgraph(config):
     print("Starting Clio clustering pipeline with LangGraph...")
-    print(f"Dataset: {config['dataset_name']}")
+    print(f"Dataset: {config['dataset_name']}") if config.get("dataset_name") else print(f"Project: {config['project_name']}")
     print(f"Hierarchy (number of examples at each level): {config['hierarchy']}\n")
     print(f"Current working directory: {os.getcwd()}")
 
     from open_clio.generate_langgraph import run_graph, save_langgraph_results
 
-    dataset_name = config["dataset_name"]
+    # anika - need to add error testing
+    dataset_name = config.get("dataset_name")
+    project_name = config.get("project_name")
+    start_time = config.get("start_time")
+    end_time = config.get("end_time")
     hierarchy = config["hierarchy"]
     summary_prompt = config.get("summary_prompt", "summarize por favor: {{example}}")
     save_path = config.get("save_path", "./clustering_results")
@@ -33,6 +37,9 @@ def run_generate_langgraph(config):
     results = asyncio.run(
         run_graph(
             dataset_name=dataset_name,
+            project_name=project_name,
+            start_time=start_time,
+            end_time=end_time,
             hierarchy=hierarchy,
             summary_prompt=summary_prompt,
             save_path=save_path,

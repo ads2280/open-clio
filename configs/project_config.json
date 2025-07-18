@@ -2,7 +2,7 @@
 "project_name": "kehuzhichijiqiren",
 "hierarchy": [2],
 "summary_prompt": "Summarize this run: {{run.outputs.messages}}", 
-"start_time": "datetime.now() - timedelta(days=1)",
+"start_time": "2024-01-01T00:00:00",
 "sample": 4,
 "partitions": {
     "Admin/Account management": "Billing, Authentication, Account Management, Data Deletion, Security/Privacy",
