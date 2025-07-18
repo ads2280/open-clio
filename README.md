@@ -18,12 +18,12 @@ Also make sure you have valid LangSmith and Anthropic API keys in your environme
 Choose a dataset or tracing project to run Clio clustering on and create a `config.json` file, or skip this step and test with `configs/tracing_project_example.json`.
 ```json
 {
-"project_name": "chat-langchain-v3",
-"hierarchy": [16, 5],
-"summary_prompt": "Summarize this run: {{run.inputs}} {{run.outputs}}", 
-"save_path": "./tracing_project_results",
-"sample": 100,
-"partitions": null
+  "project_name": "chat-langchain-v3",
+  "hierarchy": [16, 5],
+  "summary_prompt": "Summarize this run: {{run.inputs}} {{run.outputs}}", 
+  "save_path": "./tracing_project_results",
+  "sample": 100,
+  "partitions": null
 }
 ```
 
