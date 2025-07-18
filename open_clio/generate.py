@@ -72,9 +72,9 @@ async def summarize_example(
 
     # create structured LLM here
     structured_llm = llm.with_structured_output(ResponseFormatter, include_raw=True)
-    summary_prompt_w_partitions = SUMMARIZE_INSTR.format(
-        summary_prompt=summary_prompt, partitions=partitions_str
-    )
+
+    # use custom prompt directly - it should already contain the {{mustache}} template
+    summary_prompt_w_partitions = f"{summary_prompt}\n\nProvide your summary and also select the most appropriate partition for this conversation from the provided list:\n{partitions_str}"
 
     prompt = ChatPromptTemplate(
         [
@@ -87,26 +87,37 @@ async def summarize_example(
     chain = prompt | structured_llm
 
     if dataset_name:
-        result = await chain.ainvoke({"example": example.dict()})
-    if project_name:
-        result = await chain.ainvoke(
-            {"run": example.dict()}
-        )  # so under the hood its 'example' but you can use 'run' alias in prompt e.g. summarize: {{run.inputs}}
+        result = await chain.ainvoke({"example": example})
+    elif project_name:
+        result = await chain.ainvoke({"run": example})
+    else:
+        # Handle the case where neither is provided
+        print("Error: Either dataset_name or project_name must be provided")
+        return None
+
     if result["parsed"]:
+        # handle both dataset examples (with .id) and project examples (with metadata["run_id"])
+        if isinstance(example, dict) and "id" in example:
+            example_id = example["id"]
+        elif (
+            isinstance(example, dict)
+            and "metadata" in example
+            and "run_id" in example["metadata"]
+        ):
+            example_id = example["metadata"]["run_id"]
+        else:
+            raise ValueError(f"Example {example} has no ID")
+
         return {
             "summary": result["parsed"].summary,
             "partition": result["parsed"].partition,
-            "example_id": example.id,
+            "example_id": example_id,
         }
-    else:
-        print(f"Error parsing example or run with ID: {example.id}: {result}")
-        return None
-
-
-MAX_PAGES = 200  # TODO - increase/make configurable?
 
 
 def extract_threads(project_name, sample, start_time, end_time):
+    MAX_PAGES = 10  # TODO - increase/make configurable?
+
     def get_thread_ids(project_id, sample, start_time, end_time):
         offset = 0
         thread_ids = []
@@ -118,16 +129,19 @@ def extract_threads(project_name, sample, start_time, end_time):
                     "session_id": project_id,
                     "group_by": "conversation",
                     "start_time": start_time,
-                    "end_time": end_time,  # fine if none?
+                    "end_time": end_time,
                     "offset": offset,
-                    "limit": sample if sample else None,
+                    "limit": 100,
                 },
             )
             resp.raise_for_status()
             resp_json = resp.json()
             if not resp_json["groups"]:
                 break
-            thread_ids.extend([g["group_key"] for g in resp_json["groups"]])
+            for group in resp_json["groups"]:
+                if sample and len(thread_ids) >= sample:
+                    break
+                thread_ids.append(group["group_key"])
             offset = resp_json["total"]
         return thread_ids
 
@@ -144,11 +158,12 @@ def extract_threads(project_name, sample, start_time, end_time):
     for i, thread_id in enumerate(thread_ids):
         print(f"Loading thread {i + 1} of {len(thread_ids)}, {thread_id}")
         runs.append(load_thread_runs(project_id, thread_id))
-        print(f"Added {len(runs[-1])} runs to list")
-    examples = [
-        {"inputs": run.inputs, "outputs": run.outputs, "metadata": run.metadata}
-        for run in runs
-    ]
+        #print(f"Added thread with {thread_id} to 'runs' list")
+    # print(f"Loaded {len(runs)} threads")
+    examples = []
+    for run in runs:
+        examples.append({"inputs": run.inputs, "outputs": run.outputs, "metadata": run.metadata})
+    assert len(examples) == len(runs)
     return examples  # runs, as examples
 
 

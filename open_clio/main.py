@@ -48,9 +48,9 @@ def run_generate_langgraph(config):
 
     # project - edit if we change default start/end time
     if config.get("project_name") and not config.get("start_time"):
-        print("Applying default start_time, datetime.now() - timedelta(hours=1)")
+        print("Using start_time, datetime.now() - timedelta(hours=1)\n")
     if config.get("project_name") and not config.get("s_time"):
-        print("Applying default end_time, datetime.now()")
+        print("Using default end_time, datetime.now()\n")
 
     # TODO add more checks (start_time > end_time, start_time > curr_time)
 

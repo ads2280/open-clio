@@ -15,22 +15,15 @@ uv pip install -e .
 Also make sure you have valid LangSmith and Anthropic API keys in your environment.
 
 ### 2. Set up your configuration
-Choose a dataset or tracing project to run Clio clustering on and create a `config.json` file, or skip this step and test with `configs/customer_support.json`.
+Choose a dataset or tracing project to run Clio clustering on and create a `config.json` file, or skip this step and test with `configs/tracing_project_example.json`.
 ```json
 {
-    "dataset_name": "unthread-data",
-    "hierarchy": [14, 6],
-    "summary_prompt": "Summarize this example: {{example}}",
-    "save_path": "./customer_support_results",
-    "sample": 100,
-    "partitions": {
-        "Admin/Account management": "Billing, Authentication, Account Management, Data Deletion, Security/Privacy",
-        "LangChain OSS": "Python library, JavaScript library, LangMem and other components",
-        "LangSmith product": "Evaluation, Dashboards, Annotations, Datasets & Experiments, Playground, SDK/Tracing, Prompt Hub",
-        "LangGraph": "Platform (deployment/infra), OSS Python, OSS JavaScript, Studio, Pricing",
-        "LangSmith deployment": "Setting up SSO, provisioning cloud resources, managing databases, helm/kubernetes/docker/AWS/GCP/Azure",
-        "Other": "Sales inquiries, Spam, Unrelated issues"
-        }
+"project_name": "chat-langchain-v3",
+"hierarchy": [16, 5],
+"summary_prompt": "Summarize this run: {{run.inputs}} {{run.outputs}}", 
+"save_path": "./tracing_project_results",
+"sample": 100,
+"partitions": null
 }
 ```
 
@@ -43,7 +36,7 @@ If you specified a `project_name`, you may also include:
 - `end_time`: end time to filter by, or defaults to `datetime.now()`
 Please also specify:
 - `hierarchy`: How many clusters to create at each level and how many levels total [base_level, middle_level, top_level] (3 levels in this example)
-- `summary_prompt`: Instructions specifying what domain-specific info the LLM should focus on when summarizing conversations 
+- `summary_prompt`: Pass in the example or run to summarize (for example {{run}} or {{example.inputs}}) and instruct an LLM on how to summarize it.
 - `save_path`: Where to save the results
 Additionally, you may include:
 - `sample`: the maximum number of examples or runs to return
@@ -84,7 +77,7 @@ This example is pre-configured for a dataset of customer support conversations:
 
 ### Write a summary prompt
 
-Your summary prompt tells the LLM how to extract key information from each example or run, especially any domain or application specific info that the example's summary must retain. 
+Your summary prompt tells the LLM how to extract key information from each example or run, especially any domain or application specific info that the example's summary must retain. More specific summary prompts create more accurate and precise clusters.
 
 Use a mustache template to include the fields of your example or run to summarize, for example ```{{run.inputs.messages}}``` or ```{{example.inputs.0}}```
 

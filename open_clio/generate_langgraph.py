@@ -596,20 +596,17 @@ def load_examples_or_runs(state: State) -> dict:
     elif project_name:
         # here examples is actually theads
         if state.get("start_time"):
-            start_time = (state.get("start_time")).isoformat()
+            start_time = state.get("start_time")
         else:
             start_time = (datetime.now() - timedelta(hours=1)).isoformat()
 
         if state.get("end_time"):
-            end_time = (state.get("end_time")).isoformat()
+            end_time = state.get("end_time")
         else:
             end_time = (datetime.now()).isoformat()
         # this should be the only place start_time, end_time matters
-
-        examples = extract_threads(
-            project_name, state.get("sample"), start_time, end_time
-        )
-        examples = [x.dict() for x in examples]
+        sample = state.get("sample")
+        examples = extract_threads(project_name, sample, start_time, end_time)
         total_examples = len(examples)
 
         print(
@@ -632,6 +629,8 @@ def map_summaries(state: State) -> list[Send]:
                 "example": e,
                 "partitions": state["partitions"],
                 "summary_prompt": state.get("summary_prompt"),
+                "dataset_name": state.get("dataset_name"),
+                "project_name": state.get("project_name"),
             },
         )
         for e in state["examples"]
@@ -640,13 +639,14 @@ def map_summaries(state: State) -> list[Send]:
 
 async def summarize(state: State) -> dict:
     example = state["example"]
+    # print(f"summary prompt: {state.get('summary_prompt')}")
     summary = await summarize_example(
+        state["partitions"],  # can be None
+        state.get("summary_prompt"),
         example,
         state.get("dataset_name"),
         state.get("project_name"),
-        state["partitions"],  # can be None
-        state.get("summary_prompt"),
-    )  # TODO change the fact that summary is expected both
+    )
     return {"summaries": [summary]}
 
 
@@ -662,7 +662,17 @@ def map_partitions(state: State) -> list[Send]:
     sends = []
     for partition, cat_summaries in summaries_by_partition.items():
         example_ids = [s["example_id"] for s in cat_summaries]
-        partition_examples = [e for e in state["examples"] if e.id in example_ids]
+        partition_examples = []
+        for e in state["examples"]:
+            # Handle both dataset examples (with .id) and project examples (with metadata["run_id"])
+            if isinstance(e, dict) and "id" in e:
+                example_id = e["id"]
+            elif isinstance(e, dict) and "metadata" in e and "run_id" in e["metadata"]:
+                example_id = e["metadata"]["run_id"]
+            else:
+                raise ValueError(f"Example {e} has no ID")
+            if example_id in example_ids:
+                partition_examples.append(e)
         sends.append(
             Send(
                 "cluster_partition",
@@ -721,9 +731,9 @@ async def run_graph(
             "hierarchy": hierarchy,
             "partitions": partitions,
             "sample": sample,
+            "summary_prompt": summary_prompt,
         },
         config={
-            "summary_prompt": summary_prompt,
             "max_concurrency": max_concurrency,
             "recursion_limit": 100,
         },
@@ -793,7 +803,18 @@ def save_langgraph_results(results, save_path=None):
 
     # Process each example - get base cluster info, intermediate levels, top level
     for example in examples:
-        example_id = example.id
+        # Handle both dataset examples (with .id) and project examples (with metadata["run_id"])
+        if isinstance(example, dict) and "id" in example:
+            example_id = example["id"]
+        elif (
+            isinstance(example, dict)
+            and "metadata" in example
+            and "run_id" in example["metadata"]
+        ):
+            example_id = example["metadata"]["run_id"]
+        else:
+            raise ValueError(f"Example {example} has no ID")
+
         summary = summary_map.get(example_id)
 
         if not summary:
@@ -829,16 +850,77 @@ def save_langgraph_results(results, save_path=None):
             top_cluster_id = None
             top_cluster_name = ""
 
-        full_example = ""
-        if hasattr(example, "inputs") and example.inputs:
+        # Extract inputs
+        inputs_text = ""
+        if isinstance(example, dict) and "inputs" in example and example["inputs"]:
+            if isinstance(example["inputs"], dict):
+                # Handle messages array in inputs
+                if "messages" in example["inputs"] and example["inputs"]["messages"]:
+                    input_parts = []
+                    for msg in example["inputs"]["messages"]:
+                        if isinstance(msg, dict) and "content" in msg:
+                            role = msg.get("role", "unknown")
+                            content = msg["content"]
+                            input_parts.append(f"{role}: {content}")
+                    inputs_text = "\n".join(input_parts)
+                else:
+                    # Fallback to original logic for other dict structures
+                    input_parts = []
+                    for key, value in example["inputs"].items():
+                        if isinstance(value, str) and value.strip():
+                            input_parts.append(f"{key}: {value}")
+                    inputs_text = "\n".join(input_parts)
+            elif isinstance(example["inputs"], str):
+                inputs_text = example["inputs"]
+        elif hasattr(example, "inputs") and example.inputs:
             if isinstance(example.inputs, dict):
                 input_parts = []
                 for key, value in example.inputs.items():
                     if isinstance(value, str) and value.strip():
                         input_parts.append(f"{key}: {value}")
-                full_example = "\n".join(input_parts)
+                inputs_text = "\n".join(input_parts)
             elif isinstance(example.inputs, str):
-                full_example = example.inputs
+                inputs_text = example.inputs
+
+        # Extract outputs
+        outputs_text = ""
+        if isinstance(example, dict) and "outputs" in example and example["outputs"]:
+            if isinstance(example["outputs"], dict):
+                # Handle messages array in outputs
+                if "messages" in example["outputs"] and example["outputs"]["messages"]:
+                    output_parts = []
+                    for msg in example["outputs"]["messages"]:
+                        if isinstance(msg, dict) and "content" in msg:
+                            msg_type = msg.get("type", "unknown")
+                            content = msg["content"]
+                            output_parts.append(f"{msg_type}: {content}")
+                    outputs_text = "\n".join(output_parts)
+                else:
+                    # Fallback to original logic for other dict structures
+                    output_parts = []
+                    for key, value in example["outputs"].items():
+                        if isinstance(value, str) and value.strip():
+                            output_parts.append(f"{key}: {value}")
+                    outputs_text = "\n".join(output_parts)
+            elif isinstance(example["outputs"], str):
+                outputs_text = example["outputs"]
+        elif hasattr(example, "outputs") and example.outputs:
+            if isinstance(example.outputs, dict):
+                output_parts = []
+                for key, value in example.outputs.items():
+                    if isinstance(value, str) and value.strip():
+                        output_parts.append(f"{key}: {value}")
+                outputs_text = "\n".join(output_parts)
+            elif isinstance(example.outputs, str):
+                outputs_text = example.outputs
+
+        # Combine inputs and outputs
+        if inputs_text and outputs_text:
+            full_example = f"INPUTS:\n{inputs_text}\n\nOUTPUTS:\n{outputs_text}"
+        elif inputs_text:
+            full_example = f"INPUTS:\n{inputs_text}"
+        elif outputs_text:
+            full_example = f"OUTPUTS:\n{outputs_text}"
         else:
             full_example = summary["summary"]  # Fallback to summary
 

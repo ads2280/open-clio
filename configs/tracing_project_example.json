@@ -1,0 +1,8 @@
+{
+"project_name": "chat-langchain-v3",
+"hierarchy": [16, 5],
+"summary_prompt": "Summarize this run: {{run.inputs}} {{run.outputs}}", 
+"save_path": "./tracing-project-results",
+"sample": 100,
+"partitions": null
+}

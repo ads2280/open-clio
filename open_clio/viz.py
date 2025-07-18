@@ -437,6 +437,9 @@ def display_examples(explorer: ClusteringExplorer, cluster_id):
 
     for _, example in cluster_examples.iterrows():
         with st.expander(f"Example: {example['summary']}"):
+            # eid 
+            if "example_id" in example and pd.notna(example["example_id"]):
+                st.markdown(f"**ID:** {example['example_id']}")
             st.markdown(f"**Summary:** {example['summary']}")
             if "full_example" in example and pd.notna(example["full_example"]):
                 st.markdown("**Full Example:**")

@@ -1,7 +1,7 @@
 {
     "dataset_name": "chat-langchain-v3-selected",
     "hierarchy": [14, 6],
-    "summary_prompt": "Summarize this example: {{example}}",
+    "summary_prompt": "Summarize this example: {{example.inputs.messages}} {{example.outputs.messages}}",
     "save_path": "./chat_langchain_results",
     "sample": 100,
     "partitions": null

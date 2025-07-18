@@ -1,8 +1,0 @@
-{
-"project_name": "chat-langchain-v3",
-"hierarchy": [2],
-"summary_prompt": "Summarize this run: {{example.inputs.messages}}", 
-"start_time": "2024-01-01T00:00:00",
-"sample": 5,
-"partitions": null
-}
