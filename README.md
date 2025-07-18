@@ -28,16 +28,19 @@ Choose a dataset or tracing project to run Clio clustering on and create a `conf
 ```
 
 **Writing your custom config:**
-Choose one of:
-- `dataset_name`: LangSmith dataset name
+Choose a data source:
+- `dataset_name`: LangSmith dataset name  
 - `project_name`: LangSmith tracing project name
+
 If you specified a `project_name`, you may also include:
 - `start_time`: start time to filter by, or defaults to `datetime.now() - timedelta(hours=1)`
 - `end_time`: end time to filter by, or defaults to `datetime.now()`
+
 You must also specify:
 - `hierarchy`: How many clusters to create at each level and how many levels total [base_level, middle_level, top_level] (3 levels in this example)
 - `summary_prompt`: Pass in the example or run to summarize (for example {{run}} or {{example.inputs}}) and instruct an LLM on how to summarize it.
 - `save_path`: Where to save the results
+
 Additionally, you can include:
 - `sample`: the maximum number of examples or runs to return
 - `partitions`: overarching areas to sort your examples or runs into
