@@ -44,9 +44,14 @@ llm = init_chat_model(
     configurable_fields=("temperature", "max_tokens", "model"),
 )
 
+
 async def summarize_example(
-    partitions: dict[str, str], summary_prompt: str, example: dict
-) -> schemas.ExampleSummary | schemas.RunSummary | None:
+    partitions: dict[str, str],
+    summary_prompt: str,
+    example: dict,
+    dataset_name: str | None = None,
+    project_name: str | None = None,
+) -> schemas.Summary | None:
     """Use an LLM to generate a summary for a single example."""
 
     class ResponseFormatter(BaseModel):
@@ -71,30 +76,80 @@ async def summarize_example(
         summary_prompt=summary_prompt, partitions=partitions_str
     )
 
-    prompt = ChatPromptTemplate([
-        {"role": "system", "content": "Summarize this example:"},
-        {"role": "user", "content": summary_prompt_w_partitions},
+    prompt = ChatPromptTemplate(
+        [
+            {"role": "system", "content": "Summarize this example:"},
+            {"role": "user", "content": summary_prompt_w_partitions},
         ],
-        template_format="mustache"
+        template_format="mustache",
     )
 
     chain = prompt | structured_llm
 
-    # anika - also need to add sampling rate_etc. to config, do checks for that in main.
-# anika - bagatur changed, just treat everything as'examples', so from runs just include id, inputs, outputs then this should be stragihtoward
-    result = await chain.ainvoke({"example": example.dict()})
+    if dataset_name:
+        result = await chain.ainvoke({"example": example.dict()})
+    if project_name:
+        result = await chain.ainvoke(
+            {"run": example.dict()}
+        )  # so under the hood its 'example' but you can use 'run' alias in prompt e.g. summarize: {{run.inputs}}
     if result["parsed"]:
         return {
             "summary": result["parsed"].summary,
             "partition": result["parsed"].partition,
-            "example_id": example.id 
+            "example_id": example.id,
         }
     else:
-        print(f"Error parsing example {example.id}: {result}")
+        print(f"Error parsing example or run with ID: {example.id}: {result}")
         return None
 
-    # how to make sure they give mustache
-    # return {"summary": res, "partition": partition, "example_id": example.id} or project_id if run!!!
+
+MAX_PAGES = 200  # TODO - increase/make configurable?
+
+
+def extract_threads(project_name, sample, start_time, end_time):
+    def get_thread_ids(project_id, sample, start_time, end_time):
+        offset = 0
+        thread_ids = []
+        for _ in range(MAX_PAGES):
+            resp = client.request_with_retries(
+                "POST",
+                "runs/group",
+                json={
+                    "session_id": project_id,
+                    "group_by": "conversation",
+                    "start_time": start_time,
+                    "end_time": end_time,  # fine if none?
+                    "offset": offset,
+                    "limit": sample if sample else None,
+                },
+            )
+            resp.raise_for_status()
+            resp_json = resp.json()
+            if not resp_json["groups"]:
+                break
+            thread_ids.extend([g["group_key"] for g in resp_json["groups"]])
+            offset = resp_json["total"]
+        return thread_ids
+
+    def load_thread_runs(project_id: str, thread_id: str) -> list:
+        filter_string = f'and(in(metadata_key, ["session_id","conversation_id","thread_id"]), eq(metadata_value, "{thread_id}"))'
+        return next(
+            client.list_runs(project_id=project_id, filter=filter_string, is_root=True)
+        )
+
+    project_id = str(client.read_project(project_name=project_name).id)
+
+    thread_ids = get_thread_ids(project_id, sample, start_time, end_time)
+    runs = []
+    for i, thread_id in enumerate(thread_ids):
+        print(f"Loading thread {i + 1} of {len(thread_ids)}, {thread_id}")
+        runs.append(load_thread_runs(project_id, thread_id))
+        print(f"Added {len(runs[-1])} runs to list")
+    examples = [
+        {"inputs": run.inputs, "outputs": run.outputs, "metadata": run.metadata}
+        for run in runs
+    ]
+    return examples  # runs, as examples
 
 
 def perform_base_clustering(

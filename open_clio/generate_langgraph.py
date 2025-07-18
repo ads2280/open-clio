@@ -17,11 +17,12 @@ from open_clio.generate import (
     ASSIGN_CLUSTER_INSTR,
     RENAME_CLUSTER_INSTR,
     CRITERIA,
+    extract_threads,
 )
 from logging import getLogger
 from langsmith import Client
 from langsmith import schemas as ls_schemas
-from open_clio.internal.schemas import ExampleSummary
+from open_clio.internal.schemas import Summary
 import random
 import uuid
 import time
@@ -33,9 +34,9 @@ import asyncio
 import os
 import pandas as pd
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
-DEFAULT_SUMMARY_PROMPT = """summarize por favor: {{example}}"""
+# removed default summary prompt
 
 logger = getLogger(__name__)
 
@@ -57,7 +58,7 @@ class ClusterState(TypedDict):
     hierarchy: list[int]
     clusters: Annotated[dict[int, dict], merge_dict]
     examples: list[ls_schemas.Example]
-    summaries: Annotated[list[ExampleSummary], lambda l, r: l + r]
+    summaries: Annotated[list[Summary], lambda l, r: l + r]
     total_examples: int
     proposed_clusters: list[str] | None
     deduplicated_clusters: list[str] | None
@@ -271,9 +272,6 @@ def map_assign_clusters(state: ClusterState) -> list[Send]:
 
 
 def assign_single_cluster(state: ClusterState) -> dict:
-    # TODO Extract the logic from assign_clusters_to_higher_level for a single cluster
-    # Return {"cluster_assignment": {cluster_id: assigned_name}}
-
     cluster_id = state["cluster_id"]
     cluster_info_item = state["cluster_info"]
     deduplicated = state["deduplicated"]
@@ -282,7 +280,6 @@ def assign_single_cluster(state: ClusterState) -> dict:
     random.shuffle(shuffled)
     higher_level_text = "\n".join([f"<cluster>{name}</cluster>" for name in shuffled])
 
-    # TODO messy
     assign_user_prompt = ASSIGN_CLUSTER_INSTR.format(
         higher_level_text=higher_level_text, specific_cluster=cluster_info_item
     )
@@ -352,14 +349,7 @@ def map_rename_clusters(state: ClusterState) -> list[Send]:
     level = state["current_level"]  # prev "level": len(state["clusters"])
     partition = state["partition"]
 
-    # Only process assignments for clusters that exist in current_clusters
-    # fixes an error where we try to rename a cluster that doesn't exist at this level
     valid_assignments = {k: v for k, v in assignments.items() if k in current_clusters}
-
-    # if len(valid_assignments) != len(assignments):
-    #    print(
-    #        f"WARNING: Filtered out {len(assignments) - len(valid_assignments)} assignments for clusters not in current level"
-    #    )
 
     cluster_groups = {}
     for cluster_id, assigned_hl in valid_assignments.items():
@@ -549,8 +539,10 @@ cluster_builder.add_edge("prepare_next_level", "embed")
 cluster_builder.add_edge("save_final_level", "__end__")
 cluster_graph = cluster_builder.compile()
 
+
 # need to set these un run_graph
 class State(TypedDict):
+    # from configs
     dataset_name: str | None
     project_name: str | None
     start_time: str | None
@@ -559,19 +551,17 @@ class State(TypedDict):
     hierarchy: Annotated[list[int], operator.add]
     partitions: dict | None
     summary_prompt: str | None
+
     examples: Annotated[list[ls_schemas.Example], operator.add]
-    summaries: Annotated[list[ExampleSummary], lambda l, r: l + r]
+    summaries: Annotated[list[Summary], lambda l, r: l + r]
     total_examples: Annotated[int, lambda l, r: max(l, r)]
     clusters: Annotated[dict, merge_dict]
     all_clusters_by_level: Annotated[dict, merge_dict]
 
-# ideally this is the only thing to change
-# it is - ids are the same, basically just cast them to example objects
-# anika - bagatur changed, just treat everything as'examples', so from runs just include id, inputs, outputs then this should be stragihtoward
+
 def load_examples_or_runs(state: State) -> dict:
     partitions = state["partitions"]
     hierarchy = state["hierarchy"]
-    # lets assume its all perfectly orchestrated in main
     dataset_name = state.get("dataset_name")
     project_name = state.get("project_name")
 
@@ -589,70 +579,49 @@ def load_examples_or_runs(state: State) -> dict:
 
     client = Client()
     if dataset_name:
-        examples = [x.dict() for x in 
-            client.list_examples(
+        examples = [
+            x.dict()
+            for x in client.list_examples(
                 dataset_name=dataset_name,
-                limit=state["sample"] if state.get("sample") else 1000,
-                order="random"
+                limit=state["sample"] if state.get("sample") else 200,
+                order="random",
             )
         ]
         total_examples = len(examples)
+
+        print(
+            f"\nLoaded {total_examples} examples, generating summaries and embeddings... "
+        )
+        print(f"Examples will be clustered according to the following partitions:")
     elif project_name:
-        # Convert string timestamps to datetime objects if provided
-        start_time_dt = None
-        end_time_dt = None
-        
+        # here examples is actually theads
         if state.get("start_time"):
-            try:
-                start_time_dt = datetime.fromisoformat(state["start_time"])
-            except ValueError as e:
-                logger.warning(f"Invalid start_time format: {state['start_time']}. Expected ISO format. Error: {e}")
-                start_time_dt = None
-        
+            start_time = (state.get("start_time")).isoformat()
+        else:
+            start_time = (datetime.now() - timedelta(hours=1)).isoformat()
+
         if state.get("end_time"):
-            try:
-                end_time_dt = datetime.fromisoformat(state["end_time"])
-            except ValueError as e:
-                logger.warning(f"Invalid end_time format: {state['end_time']}. Expected ISO format. Error: {e}")
-                end_time_dt = None
-        
-        # Create a simple wrapper class to provide .dict() and .id methods
-        class RunWrapper:
-            def __init__(self, run_dict):
-                self._data = run_dict
-                self.id = run_dict.get("id")
-            
-            def dict(self):
-                return self._data
-        
-        examples = [RunWrapper(x.dict(include={"id", "inputs", "outputs"})) for x in 
-            client.list_runs(
-                project_name=state["project_name"],
-                limit=state["sample"] if state.get("sample") else 1000,
-                start_time=start_time_dt,
-                end_time=end_time_dt,
-                # TODO add these to state
-            )
-            # set artificial limit of 1000, can rm later
-        ]
+            end_time = (state.get("end_time")).isoformat()
+        else:
+            end_time = (datetime.now()).isoformat()
+        # this should be the only place start_time, end_time matters
+
+        examples = extract_threads(
+            project_name, state.get("sample"), start_time, end_time
+        )
+        examples = [x.dict() for x in examples]
         total_examples = len(examples)
+
+        print(
+            f"\nLoaded {total_examples} runs, generating summaries and embeddings... "
+        )
+        print(f"Runs will be clustered according to the following partitions:")
     else:
         raise ValueError("Either dataset_name or project_name must be provided")
-    
+
     validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
 
-    print(f"\nProcessing {total_examples} examples across the following partitions:")
     return {"total_examples": total_examples, "examples": examples}
-
-
-async def summarize(state: State) -> dict:
-    example = state["example"]
-    summary = await summarize_example(
-        state["partitions"],
-        state.get("summary_prompt", DEFAULT_SUMMARY_PROMPT),
-        example,
-    )
-    return {"summaries": [summary]}
 
 
 def map_summaries(state: State) -> list[Send]:
@@ -667,6 +636,18 @@ def map_summaries(state: State) -> list[Send]:
         )
         for e in state["examples"]
     ]
+
+
+async def summarize(state: State) -> dict:
+    example = state["example"]
+    summary = await summarize_example(
+        example,
+        state.get("dataset_name"),
+        state.get("project_name"),
+        state["partitions"],  # can be None
+        state.get("summary_prompt"),
+    )  # TODO change the fact that summary is expected both
+    return {"summaries": [summary]}
 
 
 def map_partitions(state: State) -> list[Send]:
@@ -706,7 +687,7 @@ partitioned_cluster_builder.add_node("cluster_partition", cluster_graph)
 partitioned_cluster_builder.add_node("aggregate_summaries", {})
 # partitioned_cluster_builder.add_node("aggregate_summaries", lambda x: x)
 
-partitioned_cluster_builder.set_entry_point("load_examples_or_runs") #anika  - edited
+partitioned_cluster_builder.set_entry_point("load_examples_or_runs")
 partitioned_cluster_builder.add_conditional_edges(
     "load_examples_or_runs", map_summaries, ["summarize"]
 )
@@ -723,12 +704,12 @@ async def run_graph(
     summary_prompt: str,
     *,
     dataset_name: str | None = None,
-    project_name: str | None = None, 
+    project_name: str | None = None,
     start_time: str | None = None,
     end_time: str | None = None,
     save_path: str | None = None,
     partitions: dict | None = None,
-    sample: int | None = None, # anika - no sampling rate for now
+    sample: int | None = None,  # anika - no sampling rate for now
     max_concurrency: int = DEFAULT_SUMMARIZATION_CONCURRENCY,
 ):
     results = await partitioned_cluster_graph.ainvoke(
@@ -883,7 +864,7 @@ def save_langgraph_results(results, save_path=None):
 
     examples_df = pd.DataFrame(examples_data)
     examples_df.to_csv(f"{save_path}/combined.csv", index=False)
-    print(f"- Saved {len(examples_data)} examples to combined.csv")
+    print(f"- Saved {len(examples_data)} examples or runs to combined.csv")
 
     # 2. csv by level: Save ALL clusters from ALL levels
     all_clusters_by_level = {"level_0": [], "level_1": [], "level_2": []}

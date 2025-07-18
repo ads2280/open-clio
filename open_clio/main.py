@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import streamlit.web.cli as stcli
+from datetime import datetime
 
 
 def load_config(config_path=None):
@@ -16,19 +17,49 @@ def load_config(config_path=None):
 
 def run_generate_langgraph(config):
     print("Starting Clio clustering pipeline with LangGraph...")
-    print(f"Dataset: {config['dataset_name']}") if config.get("dataset_name") else print(f"Project: {config['project_name']}")
+    print(f"Dataset: {config['dataset_name']}") if config.get(
+        "dataset_name"
+    ) else print(f"Project: {config['project_name']}")
     print(f"Hierarchy (number of examples at each level): {config['hierarchy']}\n")
     print(f"Current working directory: {os.getcwd()}")
 
     from open_clio.generate_langgraph import run_graph, save_langgraph_results
 
-    # anika - need to add error testing
+    # validate config
+    # general
+    if config.get("dataset_name") and config.get("project_name"):
+        raise ValueError("dataset_name and project_name cannot both be provided")
+    if not config.get("dataset_name") and not config.get("project_name"):
+        raise ValueError("dataset_name or project_name must be provided")
+    if not config.get("hierarchy"):
+        raise ValueError("hierarchy must be provided")
+    if not config.get("summary_prompt"):  # could add fallback
+        raise ValueError(
+            "summary_prompt must be provided, for example: Summarize this run: {{inputs.messages}}"
+        )  # checkexample
+
+    # dataset
+    if config.get("dataset_name") and (
+        config.get("start_time") or config.get("end_time")
+    ):
+        raise ValueError(
+            "start_time and end_time cannot be provided when dataset_name is provided"
+        )
+
+    # project - edit if we change default start/end time
+    if config.get("project_name") and not config.get("start_time"):
+        print("Applying default start_time, datetime.now() - timedelta(hours=1)")
+    if config.get("project_name") and not config.get("s_time"):
+        print("Applying default end_time, datetime.now()")
+
+    # TODO add more checks (start_time > end_time, start_time > curr_time)
+
     dataset_name = config.get("dataset_name")
     project_name = config.get("project_name")
     start_time = config.get("start_time")
     end_time = config.get("end_time")
     hierarchy = config["hierarchy"]
-    summary_prompt = config.get("summary_prompt", "summarize por favor: {{example}}")
+    summary_prompt = config.get("summary_prompt")
     save_path = config.get("save_path", "./clustering_results")
     partitions = config.get("partitions")
     sample = config.get("sample")
