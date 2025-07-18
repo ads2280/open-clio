@@ -17,11 +17,12 @@ from open_clio.generate import (
     ASSIGN_CLUSTER_INSTR,
     RENAME_CLUSTER_INSTR,
     CRITERIA,
+    extract_threads,
 )
 from logging import getLogger
 from langsmith import Client
 from langsmith import schemas as ls_schemas
-from open_clio.internal.schemas import ExampleSummary
+from open_clio.internal.schemas import Summary
 import random
 import uuid
 import time
@@ -33,8 +34,9 @@ import asyncio
 import os
 import pandas as pd
 from collections import defaultdict
+from datetime import datetime, timedelta
 
-DEFAULT_SUMMARY_PROMPT = """summarize por favor: {{example}}"""
+# removed default summary prompt
 
 logger = getLogger(__name__)
 
@@ -56,7 +58,7 @@ class ClusterState(TypedDict):
     hierarchy: list[int]
     clusters: Annotated[dict[int, dict], merge_dict]
     examples: list[ls_schemas.Example]
-    summaries: Annotated[list[ExampleSummary], lambda l, r: l + r]
+    summaries: Annotated[list[Summary], lambda l, r: l + r]
     total_examples: int
     proposed_clusters: list[str] | None
     deduplicated_clusters: list[str] | None
@@ -270,9 +272,6 @@ def map_assign_clusters(state: ClusterState) -> list[Send]:
 
 
 def assign_single_cluster(state: ClusterState) -> dict:
-    # TODO Extract the logic from assign_clusters_to_higher_level for a single cluster
-    # Return {"cluster_assignment": {cluster_id: assigned_name}}
-
     cluster_id = state["cluster_id"]
     cluster_info_item = state["cluster_info"]
     deduplicated = state["deduplicated"]
@@ -281,7 +280,6 @@ def assign_single_cluster(state: ClusterState) -> dict:
     random.shuffle(shuffled)
     higher_level_text = "\n".join([f"<cluster>{name}</cluster>" for name in shuffled])
 
-    # TODO messy
     assign_user_prompt = ASSIGN_CLUSTER_INSTR.format(
         higher_level_text=higher_level_text, specific_cluster=cluster_info_item
     )
@@ -351,14 +349,7 @@ def map_rename_clusters(state: ClusterState) -> list[Send]:
     level = state["current_level"]  # prev "level": len(state["clusters"])
     partition = state["partition"]
 
-    # Only process assignments for clusters that exist in current_clusters
-    # fixes an error where we try to rename a cluster that doesn't exist at this level
     valid_assignments = {k: v for k, v in assignments.items() if k in current_clusters}
-
-    # if len(valid_assignments) != len(assignments):
-    #    print(
-    #        f"WARNING: Filtered out {len(assignments) - len(valid_assignments)} assignments for clusters not in current level"
-    #    )
 
     cluster_groups = {}
     for cluster_id, assigned_hl in valid_assignments.items():
@@ -549,23 +540,30 @@ cluster_builder.add_edge("save_final_level", "__end__")
 cluster_graph = cluster_builder.compile()
 
 
+# need to set these un run_graph
 class State(TypedDict):
-    dataset_name: str
+    # from configs
+    dataset_name: str | None
+    project_name: str | None
+    start_time: str | None
+    end_time: str | None
     sample: int | float | None
     hierarchy: Annotated[list[int], operator.add]
     partitions: dict | None
     summary_prompt: str | None
+
     examples: Annotated[list[ls_schemas.Example], operator.add]
-    summaries: Annotated[list[ExampleSummary], lambda l, r: l + r]
+    summaries: Annotated[list[Summary], lambda l, r: l + r]
     total_examples: Annotated[int, lambda l, r: max(l, r)]
     clusters: Annotated[dict, merge_dict]
     all_clusters_by_level: Annotated[dict, merge_dict]
 
 
-def load_examples(state: State) -> dict:
+def load_examples_or_runs(state: State) -> dict:
     partitions = state["partitions"]
     hierarchy = state["hierarchy"]
-    dataset_name = state["dataset_name"]
+    dataset_name = state.get("dataset_name")
+    project_name = state.get("project_name")
 
     if not hierarchy:
         raise ValueError("hierarchy cannot be empty")
@@ -580,28 +578,47 @@ def load_examples(state: State) -> dict:
             )
 
     client = Client()
-    examples = list(
-        client.list_examples(
-            dataset_name=dataset_name,
-            limit=state["sample"] if state.get("sample") else None,
+    if dataset_name:
+        examples = [
+            x.dict()
+            for x in client.list_examples(
+                dataset_name=dataset_name,
+                limit=state["sample"] if state.get("sample") else 200,
+                order="random",
+            )
+        ]
+        total_examples = len(examples)
+
+        print(
+            f"\nLoaded {total_examples} examples, generating summaries and embeddings... "
         )
-    )
-    total_examples = len(examples)
+        print(f"Examples will be clustered according to the following partitions:")
+    elif project_name:
+        # here examples is actually theads
+        if state.get("start_time"):
+            start_time = state.get("start_time")
+        else:
+            start_time = (datetime.now() - timedelta(hours=1)).isoformat()
+
+        if state.get("end_time"):
+            end_time = state.get("end_time")
+        else:
+            end_time = (datetime.now()).isoformat()
+        # this should be the only place start_time, end_time matters
+        sample = state.get("sample")
+        examples = extract_threads(project_name, sample, start_time, end_time)
+        total_examples = len(examples)
+
+        print(
+            f"\nLoaded {total_examples} runs, generating summaries and embeddings... "
+        )
+        print(f"Runs will be clustered according to the following partitions:")
+    else:
+        raise ValueError("Either dataset_name or project_name must be provided")
+
     validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
 
-    print(f"\nProcessing {total_examples} examples across the following partitions:")
     return {"total_examples": total_examples, "examples": examples}
-
-
-# TODO figure out how to tqdm with langgraph
-async def summarize(state: State) -> dict:
-    example = state["example"]
-    summary = await summarize_example(
-        example,
-        state["partitions"],
-        state.get("summary_prompt", DEFAULT_SUMMARY_PROMPT),
-    )
-    return {"summaries": [summary]}
 
 
 def map_summaries(state: State) -> list[Send]:
@@ -612,10 +629,25 @@ def map_summaries(state: State) -> list[Send]:
                 "example": e,
                 "partitions": state["partitions"],
                 "summary_prompt": state.get("summary_prompt"),
+                "dataset_name": state.get("dataset_name"),
+                "project_name": state.get("project_name"),
             },
         )
         for e in state["examples"]
     ]
+
+
+async def summarize(state: State) -> dict:
+    example = state["example"]
+    # print(f"summary prompt: {state.get('summary_prompt')}")
+    summary = await summarize_example(
+        state["partitions"],  # can be None
+        state.get("summary_prompt"),
+        example,
+        state.get("dataset_name"),
+        state.get("project_name"),
+    )
+    return {"summaries": [summary]}
 
 
 def map_partitions(state: State) -> list[Send]:
@@ -630,7 +662,17 @@ def map_partitions(state: State) -> list[Send]:
     sends = []
     for partition, cat_summaries in summaries_by_partition.items():
         example_ids = [s["example_id"] for s in cat_summaries]
-        partition_examples = [e for e in state["examples"] if e.id in example_ids]
+        partition_examples = []
+        for e in state["examples"]:
+            # Handle both dataset examples (with .id) and project examples (with metadata["run_id"])
+            if isinstance(e, dict) and "id" in e:
+                example_id = e["id"]
+            elif isinstance(e, dict) and "metadata" in e and "run_id" in e["metadata"]:
+                example_id = e["metadata"]["run_id"]
+            else:
+                raise ValueError(f"Example {e} has no ID")
+            if example_id in example_ids:
+                partition_examples.append(e)
         sends.append(
             Send(
                 "cluster_partition",
@@ -649,15 +691,15 @@ def map_partitions(state: State) -> list[Send]:
 
 
 partitioned_cluster_builder = StateGraph(State)
-partitioned_cluster_builder.add_node(load_examples)
+partitioned_cluster_builder.add_node(load_examples_or_runs)
 partitioned_cluster_builder.add_node(summarize)
 partitioned_cluster_builder.add_node("cluster_partition", cluster_graph)
 partitioned_cluster_builder.add_node("aggregate_summaries", {})
 # partitioned_cluster_builder.add_node("aggregate_summaries", lambda x: x)
 
-partitioned_cluster_builder.set_entry_point("load_examples")
+partitioned_cluster_builder.set_entry_point("load_examples_or_runs")
 partitioned_cluster_builder.add_conditional_edges(
-    "load_examples", map_summaries, ["summarize"]
+    "load_examples_or_runs", map_summaries, ["summarize"]
 )
 partitioned_cluster_builder.add_edge("summarize", "aggregate_summaries")
 partitioned_cluster_builder.add_conditional_edges(
@@ -668,24 +710,30 @@ partitioned_cluster_graph = partitioned_cluster_builder.compile()
 
 
 async def run_graph(
-    dataset_name: str,
     hierarchy: list,
     summary_prompt: str,
     *,
+    dataset_name: str | None = None,
+    project_name: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
     save_path: str | None = None,
     partitions: dict | None = None,
-    sample: int | None = None,
+    sample: int | None = None,  # anika - no sampling rate for now
     max_concurrency: int = DEFAULT_SUMMARIZATION_CONCURRENCY,
 ):
     results = await partitioned_cluster_graph.ainvoke(
         {
             "dataset_name": dataset_name,
+            "project_name": project_name,
+            "start_time": start_time,
+            "end_time": end_time,
             "hierarchy": hierarchy,
             "partitions": partitions,
             "sample": sample,
+            "summary_prompt": summary_prompt,
         },
         config={
-            "summary_prompt": summary_prompt,
             "max_concurrency": max_concurrency,
             "recursion_limit": 100,
         },
@@ -755,7 +803,18 @@ def save_langgraph_results(results, save_path=None):
 
     # Process each example - get base cluster info, intermediate levels, top level
     for example in examples:
-        example_id = example.id
+        # Handle both dataset examples (with .id) and project examples (with metadata["run_id"])
+        if isinstance(example, dict) and "id" in example:
+            example_id = example["id"]
+        elif (
+            isinstance(example, dict)
+            and "metadata" in example
+            and "run_id" in example["metadata"]
+        ):
+            example_id = example["metadata"]["run_id"]
+        else:
+            raise ValueError(f"Example {example} has no ID")
+
         summary = summary_map.get(example_id)
 
         if not summary:
@@ -791,16 +850,77 @@ def save_langgraph_results(results, save_path=None):
             top_cluster_id = None
             top_cluster_name = ""
 
-        full_example = ""
-        if hasattr(example, "inputs") and example.inputs:
+        # Extract inputs
+        inputs_text = ""
+        if isinstance(example, dict) and "inputs" in example and example["inputs"]:
+            if isinstance(example["inputs"], dict):
+                # Handle messages array in inputs
+                if "messages" in example["inputs"] and example["inputs"]["messages"]:
+                    input_parts = []
+                    for msg in example["inputs"]["messages"]:
+                        if isinstance(msg, dict) and "content" in msg:
+                            role = msg.get("role", "unknown")
+                            content = msg["content"]
+                            input_parts.append(f"{role}: {content}")
+                    inputs_text = "\n".join(input_parts)
+                else:
+                    # Fallback to original logic for other dict structures
+                    input_parts = []
+                    for key, value in example["inputs"].items():
+                        if isinstance(value, str) and value.strip():
+                            input_parts.append(f"{key}: {value}")
+                    inputs_text = "\n".join(input_parts)
+            elif isinstance(example["inputs"], str):
+                inputs_text = example["inputs"]
+        elif hasattr(example, "inputs") and example.inputs:
             if isinstance(example.inputs, dict):
                 input_parts = []
                 for key, value in example.inputs.items():
                     if isinstance(value, str) and value.strip():
                         input_parts.append(f"{key}: {value}")
-                full_example = "\n".join(input_parts)
+                inputs_text = "\n".join(input_parts)
             elif isinstance(example.inputs, str):
-                full_example = example.inputs
+                inputs_text = example.inputs
+
+        # Extract outputs
+        outputs_text = ""
+        if isinstance(example, dict) and "outputs" in example and example["outputs"]:
+            if isinstance(example["outputs"], dict):
+                # Handle messages array in outputs
+                if "messages" in example["outputs"] and example["outputs"]["messages"]:
+                    output_parts = []
+                    for msg in example["outputs"]["messages"]:
+                        if isinstance(msg, dict) and "content" in msg:
+                            msg_type = msg.get("type", "unknown")
+                            content = msg["content"]
+                            output_parts.append(f"{msg_type}: {content}")
+                    outputs_text = "\n".join(output_parts)
+                else:
+                    # Fallback to original logic for other dict structures
+                    output_parts = []
+                    for key, value in example["outputs"].items():
+                        if isinstance(value, str) and value.strip():
+                            output_parts.append(f"{key}: {value}")
+                    outputs_text = "\n".join(output_parts)
+            elif isinstance(example["outputs"], str):
+                outputs_text = example["outputs"]
+        elif hasattr(example, "outputs") and example.outputs:
+            if isinstance(example.outputs, dict):
+                output_parts = []
+                for key, value in example.outputs.items():
+                    if isinstance(value, str) and value.strip():
+                        output_parts.append(f"{key}: {value}")
+                outputs_text = "\n".join(output_parts)
+            elif isinstance(example.outputs, str):
+                outputs_text = example.outputs
+
+        # Combine inputs and outputs
+        if inputs_text and outputs_text:
+            full_example = f"INPUTS:\n{inputs_text}\n\nOUTPUTS:\n{outputs_text}"
+        elif inputs_text:
+            full_example = f"INPUTS:\n{inputs_text}"
+        elif outputs_text:
+            full_example = f"OUTPUTS:\n{outputs_text}"
         else:
             full_example = summary["summary"]  # Fallback to summary
 
@@ -826,7 +946,7 @@ def save_langgraph_results(results, save_path=None):
 
     examples_df = pd.DataFrame(examples_data)
     examples_df.to_csv(f"{save_path}/combined.csv", index=False)
-    print(f"- Saved {len(examples_data)} examples to combined.csv")
+    print(f"- Saved {len(examples_data)} examples or runs to combined.csv")
 
     # 2. csv by level: Save ALL clusters from ALL levels
     all_clusters_by_level = {"level_0": [], "level_1": [], "level_2": []}

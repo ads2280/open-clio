@@ -11,6 +11,7 @@ from tqdm import tqdm
 from open_clio.internal.utils import gated_coro
 from open_clio.internal import schemas
 
+from langchain_core.prompts import ChatPromptTemplate
 from langchain.chat_models import init_chat_model
 from langchain.embeddings import init_embeddings
 import numpy as np
@@ -45,8 +46,12 @@ llm = init_chat_model(
 
 
 async def summarize_example(
-    example: ls_schemas.Example, partitions: dict[str, str], summary_prompt: str
-) -> schemas.ExampleSummary | None:
+    partitions: dict[str, str],
+    summary_prompt: str,
+    example: dict,
+    dataset_name: str | None = None,
+    project_name: str | None = None,
+) -> schemas.Summary | None:
     """Use an LLM to generate a summary for a single example."""
 
     class ResponseFormatter(BaseModel):
@@ -57,11 +62,6 @@ async def summarize_example(
             description=f"The main product partition this support request belongs to. Must be one of: {list(partitions.keys()) if partitions else ['Default']}"
         )
 
-    # Create structured LLM here
-    structured_llm = llm.with_structured_output(ResponseFormatter)
-
-    conversation_text = str(example.inputs)
-
     # If no partitions provided, all in same partition
     if not partitions:
         partitions_str = (
@@ -70,49 +70,103 @@ async def summarize_example(
     else:
         partitions_str = "\n".join(f"- {k}: {v}" for k, v in partitions.items())
 
-    summary_prompt_w_partitions = SUMMARIZE_INSTR.format(
-        summary_prompt=summary_prompt, partitions=partitions_str
+    # create structured LLM here
+    structured_llm = llm.with_structured_output(ResponseFormatter, include_raw=True)
+
+    # use custom prompt directly - it should already contain the {{mustache}} template
+    summary_prompt_w_partitions = f"{summary_prompt}\n\nProvide your summary and also select the most appropriate partition for this conversation from the provided list:\n{partitions_str}"
+
+    prompt = ChatPromptTemplate(
+        [
+            {"role": "system", "content": "Summarize this example:"},
+            {"role": "user", "content": summary_prompt_w_partitions},
+        ],
+        template_format="mustache",
     )
 
-    messages = [
-        {
-            "role": "user",
-            "content": f"The following is a conversation between an AI assistant and a user:\n\n{conversation_text}",
-        },
-        {
-            "role": "assistant",
-            "content": "I understand.",
-        },
-        {
-            "role": "user",
-            "content": f"{summary_prompt_w_partitions}",
-        },
-        {
-            "role": "assistant",
-            "content": "Sure, I'll analyze this conversation and provide a structured summary: <answer>",
-        },
-    ]
+    chain = prompt | structured_llm
 
-    try:
-        response = await structured_llm.ainvoke(messages)
-
-        res = response.summary
-        partition = response.partition
-
-    except Exception as e:
-        logger.error(f"Error processing example {example.id}: {e}")
-        try:
-            raw_response = await llm.ainvoke(messages)
-            logger.error(
-                f"Raw LLM response (before parsing) for example {example.id}: {raw_response}"
-            )
-        except Exception as raw_e:
-            logger.error(
-                f"Could not get raw response for example {example.id}: {raw_e}"
-            )
+    if dataset_name:
+        result = await chain.ainvoke({"example": example})
+    elif project_name:
+        result = await chain.ainvoke({"run": example})
+    else:
+        # Handle the case where neither is provided
+        print("Error: Either dataset_name or project_name must be provided")
         return None
 
-    return {"summary": res, "partition": partition, "example_id": example.id}
+    if result["parsed"]:
+        # handle both dataset examples (with .id) and project examples (with metadata["run_id"])
+        if isinstance(example, dict) and "id" in example:
+            example_id = example["id"]
+        elif (
+            isinstance(example, dict)
+            and "metadata" in example
+            and "run_id" in example["metadata"]
+        ):
+            example_id = example["metadata"]["run_id"]
+        else:
+            raise ValueError(f"Example {example} has no ID")
+
+        return {
+            "summary": result["parsed"].summary,
+            "partition": result["parsed"].partition,
+            "example_id": example_id,
+        }
+
+
+def extract_threads(project_name, sample, start_time, end_time):
+    MAX_PAGES = 10  # TODO - increase/make configurable?
+
+    def get_thread_ids(project_id, sample, start_time, end_time):
+        offset = 0
+        thread_ids = []
+        for _ in range(MAX_PAGES):
+            resp = client.request_with_retries(
+                "POST",
+                "runs/group",
+                json={
+                    "session_id": project_id,
+                    "group_by": "conversation",
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "offset": offset,
+                    "limit": 100,
+                },
+            )
+            resp.raise_for_status()
+            resp_json = resp.json()
+            if not resp_json["groups"]:
+                break
+            for group in resp_json["groups"]:
+                if sample and len(thread_ids) >= sample:
+                    break
+                thread_ids.append(group["group_key"])
+            offset = resp_json["total"]
+        return thread_ids
+
+    def load_thread_runs(project_id: str, thread_id: str) -> list:
+        filter_string = f'and(in(metadata_key, ["session_id","conversation_id","thread_id"]), eq(metadata_value, "{thread_id}"))'
+        return next(
+            client.list_runs(project_id=project_id, filter=filter_string, is_root=True)
+        )
+
+    project_id = str(client.read_project(project_name=project_name).id)
+
+    thread_ids = get_thread_ids(project_id, sample, start_time, end_time)
+    runs = []
+    for i, thread_id in enumerate(thread_ids):
+        print(f"Loading thread {i + 1} of {len(thread_ids)}, {thread_id}")
+        runs.append(load_thread_runs(project_id, thread_id))
+        # print(f"Added thread with {thread_id} to 'runs' list")
+    # print(f"Loaded {len(runs)} threads")
+    examples = []
+    for run in runs:
+        examples.append(
+            {"inputs": run.inputs, "outputs": run.outputs, "metadata": run.metadata}
+        )
+    assert len(examples) == len(runs)
+    return examples  # runs, as examples
 
 
 def perform_base_clustering(

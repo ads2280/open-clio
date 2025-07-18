@@ -2,7 +2,7 @@ import uuid
 from typing_extensions import TypedDict, NotRequired
 
 
-class ExampleSummary(TypedDict):
+class Summary(TypedDict):
     example_id: str | uuid.UUID
     summary: str
     category: NotRequired[str]
