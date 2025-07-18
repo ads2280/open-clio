@@ -34,11 +34,11 @@ Choose one of:
 If you specified a `project_name`, you may also include:
 - `start_time`: start time to filter by, or defaults to `datetime.now() - timedelta(hours=1)`
 - `end_time`: end time to filter by, or defaults to `datetime.now()`
-Please also specify:
+You must also specify:
 - `hierarchy`: How many clusters to create at each level and how many levels total [base_level, middle_level, top_level] (3 levels in this example)
 - `summary_prompt`: Pass in the example or run to summarize (for example {{run}} or {{example.inputs}}) and instruct an LLM on how to summarize it.
 - `save_path`: Where to save the results
-Additionally, you may include:
+Additionally, you can include:
 - `sample`: the maximum number of examples or runs to return
 - `partitions`: overarching areas to sort your examples or runs into
 

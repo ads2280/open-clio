@@ -158,11 +158,13 @@ def extract_threads(project_name, sample, start_time, end_time):
     for i, thread_id in enumerate(thread_ids):
         print(f"Loading thread {i + 1} of {len(thread_ids)}, {thread_id}")
         runs.append(load_thread_runs(project_id, thread_id))
-        #print(f"Added thread with {thread_id} to 'runs' list")
+        # print(f"Added thread with {thread_id} to 'runs' list")
     # print(f"Loaded {len(runs)} threads")
     examples = []
     for run in runs:
-        examples.append({"inputs": run.inputs, "outputs": run.outputs, "metadata": run.metadata})
+        examples.append(
+            {"inputs": run.inputs, "outputs": run.outputs, "metadata": run.metadata}
+        )
     assert len(examples) == len(runs)
     return examples  # runs, as examples
 
