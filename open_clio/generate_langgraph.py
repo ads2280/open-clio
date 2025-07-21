@@ -560,7 +560,7 @@ class State(TypedDict):
 
 
 def load_examples_or_runs(state: State) -> dict:
-    partitions = state["partitions"]
+    partitions = state.get("partitions") or {}
     hierarchy = state["hierarchy"]
     dataset_name = state.get("dataset_name")
     project_name = state.get("project_name")
@@ -627,7 +627,7 @@ def map_summaries(state: State) -> list[Send]:
             "summarize",
             {
                 "example": e,
-                "partitions": state["partitions"],
+                "partitions": state.get("partitions") or {},
                 "summary_prompt": state.get("summary_prompt"),
                 "dataset_name": state.get("dataset_name"),
                 "project_name": state.get("project_name"),
