@@ -65,6 +65,10 @@ def run_generate_langgraph(config):
     config, time_info = process_time_config(config)
 
     # validate config
+    # sample
+    if not config.get("sample"):
+        raise ValueError("sample must be provided")
+    
     # general
     if config.get("dataset_name") and config.get("project_name"):
         raise ValueError("dataset_name and project_name cannot both be provided")

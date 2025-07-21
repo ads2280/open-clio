@@ -560,6 +560,8 @@ class State(TypedDict):
 
 
 def load_examples_or_runs(state: State) -> dict:
+    if state.get("examples"):
+        return {}
     partitions = state.get("partitions") or {}
     hierarchy = state["hierarchy"]
     dataset_name = state.get("dataset_name")
@@ -722,6 +724,13 @@ async def run_graph(
     sample: int | None = None,  # anika - no sampling rate for now
     max_concurrency: int = DEFAULT_SUMMARIZATION_CONCURRENCY,
 ):
+    examples = load_examples_or_runs(
+        dataset_name=dataset_name,
+        project_name=project_name,
+        start_time=start_time,
+        end_time=end_time,
+        sample=sample,
+    )
     results = await partitioned_cluster_graph.ainvoke(
         {
             "dataset_name": dataset_name,
@@ -732,6 +741,7 @@ async def run_graph(
             "partitions": partitions,
             "sample": sample,
             "summary_prompt": summary_prompt,
+            "examples": examples,
         },
         config={
             "max_concurrency": max_concurrency,

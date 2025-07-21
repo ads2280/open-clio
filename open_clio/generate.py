@@ -116,7 +116,7 @@ async def summarize_example(
 
 
 def extract_threads(project_name, sample, start_time, end_time):
-    MAX_PAGES = 10  # TODO - increase/make configurable?
+    MAX_PAGES = 1000  
 
     def get_thread_ids(project_id, sample, start_time, end_time):
         offset = 0

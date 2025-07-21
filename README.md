@@ -45,9 +45,9 @@ You must also specify:
 - `hierarchy`: How many clusters to create at each level and how many levels total [base_level, middle_level, top_level] (3 levels in this example)
 - `summary_prompt`: Pass in the example or run to summarize (for example {{run}} or {{example.inputs}}) and instruct an LLM on how to summarize it.
 - `save_path`: Where to save the results
+- `sample`: the maximum number of examples or runs to return
 
 Additionally, you can include:
-- `sample`: the maximum number of examples or runs to return
 - `partitions`: overarching areas to sort your examples or runs into
 
 
