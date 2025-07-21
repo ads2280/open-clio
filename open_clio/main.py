@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 import streamlit.web.cli as stcli
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def load_config(config_path=None):
@@ -15,15 +15,52 @@ def load_config(config_path=None):
     return config
 
 
+def process_time_config(config):
+    # Validate only one time method is used
+    has_explicit_times = bool(config.get("start_time") or config.get("end_time"))
+    has_hours = config.get("hours") is not None
+    has_days = config.get("days") is not None
+    
+    time_methods = sum([has_explicit_times, has_hours, has_days])
+    if time_methods > 1:
+        raise ValueError("Only one of (start_time/end_time), hours, or days can be specified")
+    
+    time_info = {"method": "explicit", "original": None}
+    
+    # Convert hours/days to start_time/end_time
+    if has_hours:
+        hours = config["hours"]
+        if not isinstance(hours, int) or hours <= 0:
+            raise ValueError("hours must be a positive integer")
+        config["start_time"] = (datetime.now() - timedelta(hours=hours)).isoformat()
+        config["end_time"] = datetime.now().isoformat()
+        time_info = {"method": "hours", "original": hours}
+        del config["hours"]
+    
+    elif has_days:
+        days = config["days"]
+        if not isinstance(days, int) or days <= 0:
+            raise ValueError("days must be a positive integer")
+        config["start_time"] = (datetime.now() - timedelta(days=days)).isoformat()
+        config["end_time"] = datetime.now().isoformat()
+        time_info = {"method": "days", "original": days}
+        del config["days"]
+    
+    return config, time_info
+
+
 def run_generate_langgraph(config):
-    print("Starting Clio clustering pipeline with LangGraph...")
+    print("Starting Clio clustering pipeline...\n")
     print(f"Dataset: {config['dataset_name']}") if config.get(
         "dataset_name"
     ) else print(f"Project: {config['project_name']}")
-    print(f"Hierarchy (number of examples at each level): {config['hierarchy']}\n")
+    print(f"Hierarchy (number of examples at each level): {config['hierarchy']}")
     print(f"Current working directory: {os.getcwd()}")
 
     from open_clio.generate_langgraph import run_graph, save_langgraph_results
+
+    # ie convert hours/days, if entered, to start_time/end_time)
+    config, time_info = process_time_config(config)
 
     # validate config
     # general
@@ -46,13 +83,26 @@ def run_generate_langgraph(config):
             "start_time and end_time cannot be provided when dataset_name is provided"
         )
 
-    # project - edit if we change default start/end time
-    if config.get("project_name") and not config.get("start_time"):
-        print("Using start_time, datetime.now() - timedelta(hours=1)\n")
-    if config.get("project_name") and not config.get("s_time"):
-        print("Using default end_time, datetime.now()\n")
+    # Display time range information in a cleaner format
+    if config.get("project_name"):
+        start_time = config.get("start_time")
+        end_time = config.get("end_time")
+        
+        if not start_time:
+            start_time = (datetime.now() - timedelta(hours=1)).isoformat()
+        if not end_time:
+            end_time = datetime.now().isoformat()
+        
+        # Format the time range display based on how it was specified
+        if time_info["method"] == "hours":
+            print(f"Time range: Last {time_info['original']} hours ({start_time} → {end_time})")
+        elif time_info["method"] == "days":
+            print(f"Time range: Last {time_info['original']} days ({start_time} → {end_time})")
+        else:
+            print(f"Time range: {start_time} → {end_time}")
 
     # TODO add more checks (start_time > end_time, start_time > curr_time)
+    
 
     dataset_name = config.get("dataset_name")
     project_name = config.get("project_name")
@@ -104,13 +154,25 @@ def run_evaluate(config):
 
     evaluate_main(config)
 
-
+# TODO - test it with projects, different timing configs
 def run_extend(config):
     print("Starting cluster extension pipeline with LangGraph...")
 
+    # Process time config first (convert hours/days to start_time/end_time)
+    config, _ = process_time_config(config)
+
     save_path = config.get("save_path", "./clustering_results")
     dataset_name = config.get("dataset_name")
+    project_name = config.get("project_name")
     sample = config.get("sample", None)
+
+    # Validate that we have a dataset_name (extend currently only supports datasets)
+    if not dataset_name:
+        raise ValueError("extend currently only supports datasets, not projects. Please provide dataset_name.")
+
+    # Warn if time filtering is specified (since extend doesn't use it yet)
+    if config.get("start_time") or config.get("end_time"):
+        print("Warning: Time filtering (start_time/end_time) is not currently used in extend mode.")
 
     print(f"Loading existing hierarchy from: {save_path}")
     print(f"Loading new examples from dataset: {dataset_name}")

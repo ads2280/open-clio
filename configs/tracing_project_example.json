@@ -2,6 +2,8 @@
 "project_name": "chat-langchain-v3",
 "hierarchy": [16, 5],
 "summary_prompt": "Summarize this run: {{run.inputs}} {{run.outputs}}", 
+"start_time": "2025-07-19T00:00:00Z",
+"end_time": "2025-07-20T00:00:00Z",
 "save_path": "./tracing-project-results",
 "sample": 100,
 "partitions": null

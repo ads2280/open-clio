@@ -19,6 +19,8 @@ Choose a dataset or tracing project to run Clio clustering on and create a `conf
 ```json
 {
   "project_name": "chat-langchain-v3",
+  "start_time": "2025-07-19T00:00:00Z",
+  "end_time": "2025-07-20T00:00:00Z",
   "hierarchy": [16, 5],
   "summary_prompt": "Summarize this run: {{run.inputs}} {{run.outputs}}", 
   "save_path": "./tracing_project_results",
@@ -32,9 +34,12 @@ Choose a data source:
 - `dataset_name`: LangSmith dataset name  
 - `project_name`: LangSmith tracing project name
 
-If you specified a `project_name`, you may also include:
-- `start_time`: start time to filter by, or defaults to `datetime.now() - timedelta(hours=1)`
-- `end_time`: end time to filter by, or defaults to `datetime.now()`
+If you specified a `project_name`, you may also include time filtering options (only one method allowed):
+- `start_time` and `end_time`: explicit ISO format timestamps (e.g., "2025-07-19T00:00:00Z")
+- `hours`: integer specifying "last X hours" (e.g., `24` for last 24 hours)
+- `days`: integer specifying "last X days" (e.g., `7` for last 7 days)
+
+If no time filtering is specified, defaults to last 1 hour.
 
 You must also specify:
 - `hierarchy`: How many clusters to create at each level and how many levels total [base_level, middle_level, top_level] (3 levels in this example)
