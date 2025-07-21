@@ -243,13 +243,10 @@ def main(config_dict=None):
     partitions = combined_df["partition"].unique().tolist()
 
     # Respect sample limit from config if specified
-    sample_limit = config.get("sample")
-    if sample_limit is not None:
-        examples = list(
-            client.list_examples(dataset_name=dataset_name, limit=sample_limit)
-        )
-    else:
-        examples = list(client.list_examples(dataset_name=dataset_name))
+    sample_limit = config.get("sample", 2000)
+    examples = list(
+        client.list_examples(dataset_name=dataset_name, limit=sample_limit)
+    )
 
     # ask user before updating dataset
     while True:

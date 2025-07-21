@@ -17,16 +17,13 @@ def update_dataset(config):
     combined_df.set_index("example_id", inplace=True)
 
     # Respect sample limit from config if specified
-    sample_limit = config.get("sample")
-    if sample_limit is not None:
-        print(
-            f"Limiting dataset update to {sample_limit} samples as specified in config"
-        )
-        examples = list(
-            client.list_examples(dataset_name=dataset_name, limit=sample_limit)
-        )
-    else:
-        examples = list(client.list_examples(dataset_name=dataset_name))
+    sample_limit = config.get("sample", 2000)
+    print(
+        f"Limiting dataset update to {sample_limit} samples as specified in config"
+    )
+    examples = list(
+        client.list_examples(dataset_name=dataset_name, limit=sample_limit)
+    )
     print(f"Found {len(examples)} examples to update")
 
     updates = []

@@ -29,6 +29,14 @@ def process_time_config(config):
 
     time_info = {"method": "explicit", "original": None}
 
+    if has_explicit_times:
+        if config.get("start_time") > config.get("end_time"):
+            raise ValueError("start_time must be before end_time")
+        if config.get("start_time") > datetime.now():
+            raise ValueError("start_time cannot be in the future")
+        if config.get("end_time") > datetime.now():
+            raise ValueError("end_time cannot be in the future")
+
     # Convert hours/days to start_time/end_time
     if has_hours:
         hours = config["hours"]
@@ -67,7 +75,9 @@ def run_generate_langgraph(config):
     # validate config
     # sample
     if not config.get("sample"):
-        raise ValueError("sample must be provided")
+        config["sample"] = 2000
+    
+    print(f"Sample size: {config['sample']}")
     
     # general
     if config.get("dataset_name") and config.get("project_name"):
@@ -88,6 +98,8 @@ def run_generate_langgraph(config):
         raise ValueError(
             "start_time and end_time cannot be provided when dataset_name is provided"
         )
+    
+
 
     # Display time range information in a cleaner format
     if config.get("project_name"):
@@ -112,6 +124,7 @@ def run_generate_langgraph(config):
         else:
             print(f"Time range: {start_time} → {end_time}\n")
 
+
     # TODO add more checks (start_time > end_time, start_time > curr_time)
 
     dataset_name = config.get("dataset_name")
@@ -122,7 +135,7 @@ def run_generate_langgraph(config):
     summary_prompt = config.get("summary_prompt")
     save_path = config.get("save_path", "./clustering_results")
     partitions = config.get("partitions")
-    sample = config.get("sample")
+    sample = config.get("sample", 2000)
     max_concurrency = config.get("max_concurrency", 10)
 
     results = asyncio.run(
@@ -239,7 +252,7 @@ For more information, see the README or visit the project repository.
 
     config = load_config(args.config)
 
-    if args.action == "generate":  # changed for langgraph
+    if args.action == "generate":  
         run_generate_langgraph(config)
         run_viz(config)
     elif args.action == "evaluate":

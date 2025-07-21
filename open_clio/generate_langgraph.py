@@ -585,7 +585,7 @@ def load_examples_or_runs(state: State) -> dict:
             x.dict()
             for x in client.list_examples(
                 dataset_name=dataset_name,
-                limit=state["sample"] if state.get("sample") else 200,
+                limit=state["sample"] if state.get("sample") else 2000,
                 order="random",
             )
         ]
@@ -724,13 +724,19 @@ async def run_graph(
     sample: int | None = None,  # anika - no sampling rate for now
     max_concurrency: int = DEFAULT_SUMMARIZATION_CONCURRENCY,
 ):
-    examples = load_examples_or_runs(
-        dataset_name=dataset_name,
-        project_name=project_name,
-        start_time=start_time,
-        end_time=end_time,
-        sample=sample,
-    )
+    # Create a state dictionary for load_examples_or_runs
+    state = {
+        "dataset_name": dataset_name,
+        "project_name": project_name,
+        "start_time": start_time,
+        "end_time": end_time,
+        "sample": sample,
+        "hierarchy": hierarchy,
+        "partitions": partitions,
+    }
+    
+    examples_result = load_examples_or_runs(state)
+    examples = examples_result.get("examples", [])
     results = await partitioned_cluster_graph.ainvoke(
         {
             "dataset_name": dataset_name,
