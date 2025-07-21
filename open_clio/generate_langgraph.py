@@ -18,6 +18,7 @@ from open_clio.generate import (
     RENAME_CLUSTER_INSTR,
     CRITERIA,
     extract_threads,
+    generate_hierarchy,
 )
 from logging import getLogger
 from langsmith import Client
@@ -549,7 +550,7 @@ class State(TypedDict):
     start_time: str | None
     end_time: str | None
     sample: int | float | None
-    hierarchy: Annotated[list[int] | None, operator.add]
+    hierarchy: list[int] | None
     partitions: dict | None
     summary_prompt: str | None
     examples: Annotated[list[ls_schemas.Example], operator.add]
@@ -563,21 +564,8 @@ def load_examples_or_runs(state: State) -> dict:
     if state.get("examples"):
         return {}
     partitions = state.get("partitions") or {}
-    hierarchy = state["hierarchy"]
     dataset_name = state.get("dataset_name")
     project_name = state.get("project_name")
-
-    if not hierarchy:
-        raise ValueError("hierarchy cannot be empty")
-
-    if partitions:
-        num_partitions = len(partitions.keys())
-        num_top_level_clusters = hierarchy[-1]
-        if num_partitions != num_top_level_clusters:
-            warnings.warn(
-                f"Number of partitions ({num_partitions}) does not match number of "
-                f"top-level clusters ({num_top_level_clusters})"
-            )
 
     client = Client()
     if dataset_name:
@@ -594,7 +582,6 @@ def load_examples_or_runs(state: State) -> dict:
         print(
             f"\nLoaded {total_examples} examples, generating summaries and embeddings... "
         )
-        print(f"Examples will be clustered according to the following partitions:")
     elif project_name:
         # here examples is actually theads
         if state.get("start_time"):
@@ -628,7 +615,19 @@ def load_hierarchy(state: State) -> list[int]:
     if not hierarchy:
         hierarchy = generate_hierarchy(total_examples, partitions)
 
+    # Validate partitions match hierarchy if both are provided
+    if partitions and hierarchy:
+        num_partitions = len(partitions.keys())
+        num_top_level_clusters = hierarchy[-1]
+        if num_partitions != num_top_level_clusters:
+            warnings.warn(
+                f"Number of partitions ({num_partitions}) does not match number of "
+                f"top-level clusters ({num_top_level_clusters})"
+            )
+
     validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
+    print(f"Hierarchy (number of examples at each level): {hierarchy}")
+    
 
     return {"hierarchy": hierarchy}
 
@@ -667,6 +666,7 @@ def map_partitions(state: State) -> list[Send]:
         if summary:
             summaries_by_partition[summary["partition"]].append(summary)
 
+    print("Examples will be clustered according to the following partitions:")
     print(", ".join(set(summaries_by_partition.keys())))
     print("\n[tqdm would be helpful here]\n")
 
@@ -748,6 +748,7 @@ async def run_graph(
     
     examples_result = load_examples_or_runs(state)
     examples = examples_result.get("examples", [])
+    total_examples = examples_result.get("total_examples", len(examples))
     results = await partitioned_cluster_graph.ainvoke(
         {
             "dataset_name": dataset_name,
@@ -759,6 +760,7 @@ async def run_graph(
             "sample": sample,
             "summary_prompt": summary_prompt,
             "examples": examples,
+            "total_examples": total_examples,
         },
         config={
             "max_concurrency": max_concurrency,

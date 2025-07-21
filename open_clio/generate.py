@@ -7,6 +7,7 @@ from typing import Sequence
 import warnings
 import uuid
 from tqdm import tqdm
+import math
 
 from open_clio.internal.utils import gated_coro
 from open_clio.internal import schemas
@@ -124,8 +125,42 @@ async def summarize_example(
 
 def generate_hierarchy(total_examples, partitions) -> list[int]:
     # find the old way i did this / geometric progression
-    pass
+    # top clusters
+    num_partitions = len(partitions) if partitions else 0
+    
+    if num_partitions > 0:
+        ktop = num_partitions
+    else:
+        ktop = max(2, min(10, total_examples // 100))
 
+    # base clusters
+    base_k = int(math.sqrt(total_examples))
+    base_k = min(base_k, total_examples // 3) # for small ds
+
+    # num levels
+    if total_examples < 50:
+        levels = 1
+    elif total_examples < 500 or ktop >= base_k//2:
+        levels = 2
+    elif total_examples < 5000:
+        levels = 3
+    else:
+        levels = 4
+
+    if levels == 1:
+        hierarchy = [base_k]
+    elif levels == 2:
+        hierarchy = [base_k, ktop]
+    else:
+        ratio = (ktop / base_k) ** (1/(levels-1))  # geometric progression from clio paper
+        hierarchy = [base_k]
+        for level in range(1, levels-1):
+            n_level = int(base_k * (ratio ** level))
+            n_level = max(2, n_level)
+            hierarchy.append(n_level)
+        hierarchy.append(ktop)
+
+    return hierarchy
 
 def extract_threads(project_name, sample, start_time, end_time):
     MAX_PAGES = 1000  

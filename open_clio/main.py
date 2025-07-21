@@ -65,8 +65,6 @@ def run_generate_langgraph(config):
     if not config.get("sample"):
         config["sample"] = 2000
     
-    print(f"Sample size: {config['sample']}")
-    
     # general
     if config.get("dataset_name") and config.get("project_name"):
         raise ValueError("dataset_name and project_name cannot both be provided")
@@ -89,13 +87,15 @@ def run_generate_langgraph(config):
         )
 
 
-    print("Starting Clio clustering pipeline...\n")
+    print("Starting Clio clustering pipeline...")
+    print(f"Current working directory: {os.getcwd()}")
     print(f"Dataset: {config['dataset_name']}") if config.get(
         "dataset_name"
     ) else print(f"Project: {config['project_name']}")
+    print(f"Sample size: {config['sample']}")
     if config.get("hierarchy"):
         print(f"Hierarchy (number of examples at each level): {config['hierarchy']}")
-    print(f"Current working directory: {os.getcwd()}")
+    print("Examples will be clustered according to the following partitions:")
 
     from open_clio.generate_langgraph import run_graph, save_langgraph_results
 
@@ -129,7 +129,7 @@ def run_generate_langgraph(config):
     project_name = config.get("project_name")
     start_time = config.get("start_time")
     end_time = config.get("end_time")
-    hierarchy = config["hierarchy"]
+    hierarchy = config.get("hierarchy")  
     summary_prompt = config.get("summary_prompt")
     save_path = config.get("save_path", "./clustering_results")
     partitions = config.get("partitions")
