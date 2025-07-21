@@ -35,6 +35,7 @@ import os
 import pandas as pd
 from collections import defaultdict
 from datetime import datetime, timedelta
+import tiktoken
 
 # removed default summary prompt
 
@@ -548,10 +549,9 @@ class State(TypedDict):
     start_time: str | None
     end_time: str | None
     sample: int | float | None
-    hierarchy: Annotated[list[int], operator.add]
+    hierarchy: Annotated[list[int] | None, operator.add]
     partitions: dict | None
     summary_prompt: str | None
-
     examples: Annotated[list[ls_schemas.Example], operator.add]
     summaries: Annotated[list[Summary], lambda l, r: l + r]
     total_examples: Annotated[int, lambda l, r: max(l, r)]
@@ -570,7 +570,7 @@ def load_examples_or_runs(state: State) -> dict:
     if not hierarchy:
         raise ValueError("hierarchy cannot be empty")
 
-    if partitions is not None:
+    if partitions:
         num_partitions = len(partitions.keys())
         num_top_level_clusters = hierarchy[-1]
         if num_partitions != num_top_level_clusters:
@@ -618,10 +618,19 @@ def load_examples_or_runs(state: State) -> dict:
     else:
         raise ValueError("Either dataset_name or project_name must be provided")
 
-    validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
 
     return {"total_examples": total_examples, "examples": examples}
 
+def load_hierarchy(state: State) -> list[int]:
+    hierarchy = state.get("hierarchy")
+    total_examples = state.get("total_examples")
+    partitions = state.get("partitions")
+    if not hierarchy:
+        hierarchy = generate_hierarchy(total_examples, partitions)
+
+    validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
+
+    return {"hierarchy": hierarchy}
 
 def map_summaries(state: State) -> list[Send]:
     return [
@@ -694,14 +703,16 @@ def map_partitions(state: State) -> list[Send]:
 
 partitioned_cluster_builder = StateGraph(State)
 partitioned_cluster_builder.add_node(load_examples_or_runs)
+partitioned_cluster_builder.add_node(load_hierarchy)
 partitioned_cluster_builder.add_node(summarize)
 partitioned_cluster_builder.add_node("cluster_partition", cluster_graph)
 partitioned_cluster_builder.add_node("aggregate_summaries", {})
 # partitioned_cluster_builder.add_node("aggregate_summaries", lambda x: x)
 
 partitioned_cluster_builder.set_entry_point("load_examples_or_runs")
+partitioned_cluster_builder.add_edge("load_examples_or_runs", "load_hierarchy")
 partitioned_cluster_builder.add_conditional_edges(
-    "load_examples_or_runs", map_summaries, ["summarize"]
+    "load_hierarchy", map_summaries, ["summarize"]
 )
 partitioned_cluster_builder.add_edge("summarize", "aggregate_summaries")
 partitioned_cluster_builder.add_conditional_edges(

@@ -84,7 +84,15 @@ async def summarize_example(
         template_format="mustache",
     )
 
-    chain = prompt | structured_llm
+    def truncate_prompt(prompt_val, max_chars=300000) -> list:
+        messages = prompt_val.to_messages()
+        if len(messages[1].content) > max_chars:
+            content = messages[1].content
+            truncated_content = content[:max_chars // 2] + "\n...\n" + content[-max_chars // 2:]
+            messages[1].content = truncated_content
+        return messages
+
+    chain = prompt | truncate_prompt | structured_llm
 
     if dataset_name:
         result = await chain.ainvoke({"example": example})
@@ -113,6 +121,10 @@ async def summarize_example(
             "partition": result["parsed"].partition,
             "example_id": example_id,
         }
+
+def generate_hierarchy(total_examples, partitions) -> list[int]:
+    # find the old way i did this / geometric progression
+    pass
 
 
 def extract_threads(project_name, sample, start_time, end_time):

@@ -1,7 +1,7 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "agent": "./open_clio/generate_langgraph.py:partitioned_cluster_graph"
+    "agent": "./  open_clio/generate_langgraph.py:partitioned_cluster_graph"
   },
   "env": ".env",
   "image_distro": "wolfi"

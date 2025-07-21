@@ -60,18 +60,6 @@ def process_time_config(config):
 
 
 def run_generate_langgraph(config):
-    print("Starting Clio clustering pipeline...\n")
-    print(f"Dataset: {config['dataset_name']}") if config.get(
-        "dataset_name"
-    ) else print(f"Project: {config['project_name']}")
-    print(f"Hierarchy (number of examples at each level): {config['hierarchy']}")
-    print(f"Current working directory: {os.getcwd()}")
-
-    from open_clio.generate_langgraph import run_graph, save_langgraph_results
-
-    # ie convert hours/days, if entered, to start_time/end_time)
-    config, time_info = process_time_config(config)
-
     # validate config
     # sample
     if not config.get("sample"):
@@ -84,12 +72,13 @@ def run_generate_langgraph(config):
         raise ValueError("dataset_name and project_name cannot both be provided")
     if not config.get("dataset_name") and not config.get("project_name"):
         raise ValueError("dataset_name or project_name must be provided")
-    if not config.get("hierarchy"):
-        raise ValueError("hierarchy must be provided")
     if not config.get("summary_prompt"):  # could add fallback
         raise ValueError(
             "summary_prompt must be provided, for example: Summarize this run: {{inputs.messages}}"
         )  # checkexample
+
+    # time
+    config, time_info = process_time_config(config)
 
     # dataset
     if config.get("dataset_name") and (
@@ -98,7 +87,17 @@ def run_generate_langgraph(config):
         raise ValueError(
             "start_time and end_time cannot be provided when dataset_name is provided"
         )
-    
+
+
+    print("Starting Clio clustering pipeline...\n")
+    print(f"Dataset: {config['dataset_name']}") if config.get(
+        "dataset_name"
+    ) else print(f"Project: {config['project_name']}")
+    if config.get("hierarchy"):
+        print(f"Hierarchy (number of examples at each level): {config['hierarchy']}")
+    print(f"Current working directory: {os.getcwd()}")
+
+    from open_clio.generate_langgraph import run_graph, save_langgraph_results
 
 
     # Display time range information in a cleaner format
@@ -112,7 +111,6 @@ def run_generate_langgraph(config):
             end_time = datetime.now().isoformat()
 
         # Format the time range display based on how it was specified
-
         if time_info["method"] == "hours":
             print(
                 f"Time range: Last {time_info['original']} hours ({start_time} → {end_time})\n"
