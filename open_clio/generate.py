@@ -150,46 +150,57 @@ def extract_threads(project_name, sample, start_time, end_time):
         thread_ids_str = '","'.join(thread_ids)
         filter_string = f'and(in(metadata_key, ["session_id","conversation_id","thread_id"]), in(metadata_value, ["{thread_ids_str}"]))'
         # return list(client.list_runs(project_id=project_id, filter=filter_string, is_root=True)) --? prev
-        
+
         # get all runs, group by thread id and pick one run per thread
-        all_runs = list(client.list_runs(project_id=project_id, filter=filter_string, is_root=True))
-        
+        all_runs = list(
+            client.list_runs(project_id=project_id, filter=filter_string, is_root=True)
+        )
+
         runs_by_thread = {}
         for run in all_runs:
             thread_id = None
             for key, value in run.metadata.items():
-                if key == "thread_id":  #check
+                if key == "thread_id":  # check
                     thread_id = value
                     break
-            
+
             if thread_id and thread_id in thread_ids:
                 # first run for each thread
                 # TODO - probably want most recent
                 if thread_id not in runs_by_thread:
                     runs_by_thread[thread_id] = run
-        
+
         result = []
         for thread_id in thread_ids:
             if thread_id in runs_by_thread:
                 result.append(runs_by_thread[thread_id])
-        
+
         # one run per thread, in same order as requested thread_ids
         return result
 
     project_id = str(client.read_project(project_name=project_name).id)
 
     thread_ids = get_thread_ids(project_id, sample, start_time, end_time)
-    if not thread_ids: # no threads, use runs instead
-        runs = list(client.list_runs(project_id=project_id, limit=sample, start_time=start_time, end_time=end_time))
+    if not thread_ids:  # no threads, use runs instead
+        runs = list(
+            client.list_runs(
+                project_id=project_id,
+                limit=sample,
+                start_time=start_time,
+                end_time=end_time,
+            )
+        )
     else:
         runs = []
         # process threads in batches
         batch_size = 50
         for i in range(0, len(thread_ids), batch_size):
-            batch = thread_ids[i:i + batch_size]
-            print(f"Loading batch {i // batch_size + 1} of {(len(thread_ids) + batch_size - 1) // batch_size}")
+            batch = thread_ids[i : i + batch_size]
+            print(
+                f"Loading batch {i // batch_size + 1} of {(len(thread_ids) + batch_size - 1) // batch_size}"
+            )
             runs.extend(load_thread_runs(project_id, batch))
-    
+
     # convert runs/threads to expected format
     examples = []
     for run in runs:

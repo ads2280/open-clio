@@ -20,13 +20,15 @@ def process_time_config(config):
     has_explicit_times = bool(config.get("start_time") or config.get("end_time"))
     has_hours = config.get("hours") is not None
     has_days = config.get("days") is not None
-    
+
     time_methods = sum([has_explicit_times, has_hours, has_days])
     if time_methods > 1:
-        raise ValueError("Only one of (start_time/end_time), hours, or days can be specified")
-    
+        raise ValueError(
+            "Only one of (start_time/end_time), hours, or days can be specified"
+        )
+
     time_info = {"method": "explicit", "original": None}
-    
+
     # Convert hours/days to start_time/end_time
     if has_hours:
         hours = config["hours"]
@@ -36,7 +38,7 @@ def process_time_config(config):
         config["end_time"] = datetime.now().isoformat()
         time_info = {"method": "hours", "original": hours}
         del config["hours"]
-    
+
     elif has_days:
         days = config["days"]
         if not isinstance(days, int) or days <= 0:
@@ -45,7 +47,7 @@ def process_time_config(config):
         config["end_time"] = datetime.now().isoformat()
         time_info = {"method": "days", "original": days}
         del config["days"]
-    
+
     return config, time_info
 
 
@@ -87,22 +89,26 @@ def run_generate_langgraph(config):
     if config.get("project_name"):
         start_time = config.get("start_time")
         end_time = config.get("end_time")
-        
+
         if not start_time:
             start_time = (datetime.now() - timedelta(hours=1)).isoformat()
         if not end_time:
             end_time = datetime.now().isoformat()
-        
+
         # Format the time range display based on how it was specified
+
         if time_info["method"] == "hours":
-            print(f"Time range: Last {time_info['original']} hours ({start_time} → {end_time})")
+            print(
+                f"Time range: Last {time_info['original']} hours ({start_time} → {end_time})\n"
+            )
         elif time_info["method"] == "days":
-            print(f"Time range: Last {time_info['original']} days ({start_time} → {end_time})")
+            print(
+                f"Time range: Last {time_info['original']} days ({start_time} → {end_time})\n   "
+            )
         else:
-            print(f"Time range: {start_time} → {end_time}")
+            print(f"Time range: {start_time} → {end_time}\n")
 
     # TODO add more checks (start_time > end_time, start_time > curr_time)
-    
 
     dataset_name = config.get("dataset_name")
     project_name = config.get("project_name")
@@ -154,6 +160,7 @@ def run_evaluate(config):
 
     evaluate_main(config)
 
+
 # TODO - test it with projects, different timing configs
 def run_extend(config):
     print("Starting cluster extension pipeline with LangGraph...")
@@ -168,11 +175,15 @@ def run_extend(config):
 
     # Validate that we have a dataset_name (extend currently only supports datasets)
     if not dataset_name:
-        raise ValueError("extend currently only supports datasets, not projects. Please provide dataset_name.")
+        raise ValueError(
+            "extend currently only supports datasets, not projects. Please provide dataset_name."
+        )
 
     # Warn if time filtering is specified (since extend doesn't use it yet)
     if config.get("start_time") or config.get("end_time"):
-        print("Warning: Time filtering (start_time/end_time) is not currently used in extend mode.")
+        print(
+            "Warning: Time filtering (start_time/end_time) is not currently used in extend mode."
+        )
 
     print(f"Loading existing hierarchy from: {save_path}")
     print(f"Loading new examples from dataset: {dataset_name}")
