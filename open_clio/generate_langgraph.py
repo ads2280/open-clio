@@ -555,6 +555,7 @@ class State(TypedDict):
     ]  # first non none
     partitions: dict | None
     summary_prompt: str | None
+    filter_string: str | None
     examples: Annotated[list[ls_schemas.Example], operator.add]
     summaries: Annotated[list[Summary], lambda l, r: l + r]
     total_examples: Annotated[int, lambda l, r: max(l, r)]
@@ -597,7 +598,8 @@ def load_examples_or_runs(state: State) -> dict:
             end_time = datetime.now()
         # this should be the only place start_time, end_time matters
         sample = state.get("sample")
-        examples = extract_threads(project_name, sample, start_time, end_time)
+        filter_string = state.get("filter_string")
+        examples = extract_threads(project_name, sample, start_time, end_time, filter_string)
         total_examples = len(examples)
 
         print(
@@ -737,6 +739,7 @@ async def run_graph(
     partitions: dict | None = None,
     sample: int | None = None,  # mandatory for now
     max_concurrency: int = DEFAULT_SUMMARIZATION_CONCURRENCY,
+    filter_string: str | None = None,
 ):
     # Create a state dictionary for load_examples_or_runs
     state = {
@@ -747,6 +750,7 @@ async def run_graph(
         "sample": sample,
         "hierarchy": hierarchy,
         "partitions": partitions,
+        "filter_string": filter_string,
     }
 
     examples_result = load_examples_or_runs(state)
@@ -762,6 +766,7 @@ async def run_graph(
             "partitions": partitions,
             "sample": sample,
             "summary_prompt": summary_prompt,
+            "filter_string": filter_string,
             "examples": examples,
             "total_examples": total_examples,
         },

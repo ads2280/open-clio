@@ -134,19 +134,21 @@ def run_generate_langgraph(config):
     partitions = config.get("partitions")
     sample = config.get("sample", 2000)
     max_concurrency = config.get("max_concurrency", 10)
+    filter_string = config.get("filter_string")
 
     results = asyncio.run(
         run_graph(
+            hierarchy,
             dataset_name=dataset_name,
             project_name=project_name,
             start_time=start_time,
             end_time=end_time,
-            hierarchy=hierarchy,
             summary_prompt=summary_prompt,
             save_path=save_path,
             partitions=partitions,
             sample=sample,
             max_concurrency=max_concurrency,
+            filter_string=filter_string,
         )
     )
 
