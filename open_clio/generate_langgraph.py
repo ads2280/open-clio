@@ -59,7 +59,7 @@ class ClusterState(TypedDict):
     partition: str
     hierarchy: list[int]
     clusters: Annotated[dict[int, dict], merge_dict]
-    examples: list[]
+    examples: list
     summaries: Annotated[list[Summary], lambda l, r: l + r]
     total_examples: int
     proposed_clusters: list[str] | None
