@@ -47,7 +47,10 @@ You must also specify:
 Additionally, you can include:
 - `hierarchy`: How many clusters to create at each level and how many levels total [base_level, middle_level, top_level] (3 levels in this example)
 - `summary_prompt`: Pass in a specific part of the example or run to summarize (for example {{run}} or {{example.inputs}}) and instruct an LLM how to summarize it. Defaults to summarizing run inputs and outputs.
-- `save_path`: Where to save the results- `partitions`: overarching areas to sort your examples or runs into
+- `save_path`: Where to save the results
+- `partitions`: overarching areas to sort your examples or runs into
+- `filter_string`: Filter string to apply when loading runs from a project (e.g., "eq(run_type, 'llm')" to only include LLM runs)
+- `max_concurrency`: Maximum number of concurrent operations (default: 5)
 
 
 ### 3. Generate Clio clusters
@@ -199,9 +202,11 @@ Your `config.json` should include the following arguments:
 - `save_path`: Where to save results (default: `./clustering_results`)
 - `sample`: Process only N examples (default: all)
 - `partitions`: Pre-defined categories for your data
+- `filter_string`: LangSmith filter string for project runs (e.g., "eq(run_type, 'llm')")
+- `max_concurrency`: Maximum concurrent operations (default: 5)
 
-This is an example config.json file:
-```
+This is an example config.json file for a dataset:
+```json
 {
 "dataset_name": "unthread-data",
 "hierarchy": [125,15],
@@ -215,6 +220,20 @@ This is an example config.json file:
     "LangSmith deployment": "Setting up SSO, provisioning cloud resources, managing databases, helm/kubernetes/docker/AWS/GCP/Azure",
     "Other": "Sales inquiries, Spam, Unrelated issues"
     }
+}
+```
+
+And here's an example for a tracing project with filtering:
+```json
+{
+    "project_name": "chat-langchain-v3",
+    "hours": 24,
+    "sample": 100,
+    "hierarchy": [16, 5],
+    "summary_prompt": "Summarize this run: {{run.inputs}} {{run.outputs}}",
+    "filter_string": "eq(run_type, 'llm')",
+    "save_path": "./filtered_results",
+    "max_concurrency": 5
 }
 ```
 

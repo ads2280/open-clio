@@ -221,6 +221,7 @@ def extract_threads(project_name, sample, start_time, end_time, filter_string=No
         else:
             combined_filter = thread_filter
 
+        print(f"Using filter: {combined_filter}")
         all_runs = list(
             client.list_runs(project_id=project_id, filter=combined_filter, is_root=True)
         )
@@ -249,6 +250,11 @@ def extract_threads(project_name, sample, start_time, end_time, filter_string=No
     project_id = str(client.read_project(project_name=project_name).id)
 
     thread_ids = get_thread_ids(project_id, sample, start_time, end_time)
+    
+    if filter_string:
+        print(f"Applying filter: {filter_string}")
+    else:
+        print("No filter applied")
     if not thread_ids:  # no threads, use runs instead
         runs = list(
             client.list_runs(
@@ -268,7 +274,7 @@ def extract_threads(project_name, sample, start_time, end_time, filter_string=No
             print(
                 f"Loading batch {i // batch_size + 1} of {(len(thread_ids) + batch_size - 1) // batch_size}"
             )
-            runs.extend(load_thread_runs(project_id, batch))
+            runs.extend(load_thread_runs(project_id, batch, filter_string))
 
     # convert runs/threads to expected format
     examples = []
