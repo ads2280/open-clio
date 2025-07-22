@@ -56,10 +56,6 @@ def load_examples_node(state: ExtendState) -> dict:
     }
 
 
-# def filter_new_examples(state: ExtendState) -> dict:
-# don't need anymore bc its in load_example
-
-
 # main part to parallelize
 def map_assign_examples(state: ExtendState) -> list[Send]:
     return [

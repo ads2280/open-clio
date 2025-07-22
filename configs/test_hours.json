@@ -2,7 +2,7 @@
   "project_name": "chat-langchain-v3",
   "hierarchy": [2],
   "summary_prompt": "Summarize this run: {{run.inputs}} {{run.outputs}}", 
-  "hours": 1,
+  "hours": 5,
   "sample": 10,
   "save_path": "./test_hours_results",
   "partitions": null

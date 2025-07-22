@@ -7,6 +7,7 @@ from typing import Sequence
 import warnings
 import uuid
 from tqdm import tqdm
+import math
 
 from open_clio.internal.utils import gated_coro
 from open_clio.internal import schemas
@@ -84,7 +85,17 @@ async def summarize_example(
         template_format="mustache",
     )
 
-    chain = prompt | structured_llm
+    def truncate_prompt(prompt_val, max_chars=300000) -> list:
+        messages = prompt_val.to_messages()
+        if len(messages[1].content) > max_chars:
+            content = messages[1].content
+            truncated_content = (
+                content[: max_chars // 2] + "\n...\n" + content[-max_chars // 2 :]
+            )
+            messages[1].content = truncated_content
+        return messages
+
+    chain = prompt | truncate_prompt | structured_llm
 
     if dataset_name:
         result = await chain.ainvoke({"example": example})
@@ -115,21 +126,72 @@ async def summarize_example(
         }
 
 
+def generate_hierarchy(total_examples, partitions) -> list[int]:
+    # find the old way i did this / geometric progression
+    # top clusters
+    num_partitions = len(partitions) if partitions else 0
+
+    if num_partitions > 0:
+        ktop = num_partitions
+    else:
+        ktop = max(3, min(10, total_examples // 100))
+
+    # base clusters
+    base_k = int(math.sqrt(total_examples))
+    base_k = min(base_k, total_examples // 3)  # for small ds
+
+    # num levels
+    if total_examples < 50:
+        levels = 1
+    elif total_examples < 500 or ktop >= base_k // 2:
+        levels = 2
+    elif total_examples < 5000:
+        levels = 3
+    else:
+        levels = 4
+
+    if levels == 1:
+        hierarchy = [base_k]
+    elif levels == 2:
+        hierarchy = [base_k, ktop]
+    else:
+        ratio = (ktop / base_k) ** (
+            1 / (levels - 1)
+        )  # geometric progression from clio paper
+        hierarchy = [base_k]
+        for level in range(1, levels - 1):
+            n_level = int(base_k * (ratio**level))
+            n_level = max(2, n_level)
+            hierarchy.append(n_level)
+        hierarchy.append(ktop)
+
+    return hierarchy
+
+
 def extract_threads(project_name, sample, start_time, end_time):
-    MAX_PAGES = 1000  
+    MAX_PAGES = 1000
 
     def get_thread_ids(project_id, sample, start_time, end_time):
         offset = 0
         thread_ids = []
         for _ in range(MAX_PAGES):
+            start_time_str = (
+                start_time.isoformat()
+                if hasattr(start_time, "isoformat")
+                else start_time
+            )
+            end_time_str = (
+                end_time.isoformat() if hasattr(end_time, "isoformat") else end_time
+            )
+
             resp = client.request_with_retries(
                 "POST",
                 "runs/group",
                 json={
                     "session_id": project_id,
                     "group_by": "conversation",
-                    "start_time": start_time,
-                    "end_time": end_time,
+                    "start_time": start_time_str,
+                    "end_time": end_time_str,
                     "offset": offset,
                     "limit": 100,
                 },
