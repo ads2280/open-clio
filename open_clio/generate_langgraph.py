@@ -550,7 +550,9 @@ class State(TypedDict):
     start_time: datetime | None
     end_time: datetime | None
     sample: int | float | None
-    hierarchy: Annotated[list[int] | None, lambda l, r: l if l is not None else r] # first non none
+    hierarchy: Annotated[
+        list[int] | None, lambda l, r: l if l is not None else r
+    ]  # first non none
     partitions: dict | None
     summary_prompt: str | None
     examples: Annotated[list[ls_schemas.Example], operator.add]
@@ -604,8 +606,8 @@ def load_examples_or_runs(state: State) -> dict:
     else:
         raise ValueError("Either dataset_name or project_name must be provided")
 
-
     return {"total_examples": total_examples, "examples": examples}
+
 
 def load_hierarchy(state: State) -> list[int]:
     hierarchy = state.get("hierarchy")
@@ -625,10 +627,12 @@ def load_hierarchy(state: State) -> list[int]:
             )
 
     validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
-    print(f"Preparing clusters, targetting a hierarchy of {hierarchy} examples at each level...")
-    
+    print(
+        f"\nPreparing clusters, targetting a hierarchy of {hierarchy} examples at each level..."
+    )
 
     return {"hierarchy": hierarchy}
+
 
 def map_summaries(state: State) -> list[Send]:
     return [
@@ -744,7 +748,7 @@ async def run_graph(
         "hierarchy": hierarchy,
         "partitions": partitions,
     }
-    
+
     examples_result = load_examples_or_runs(state)
     examples = examples_result.get("examples", [])
     total_examples = examples_result.get("total_examples", len(examples))

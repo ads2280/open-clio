@@ -33,17 +33,16 @@ def process_time_config(config):
         # Convert string timestamps to datetime objects for validation
         start_time = config.get("start_time")
         end_time = config.get("end_time")
-        
+
         if isinstance(start_time, str):
-            start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            start_time = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
             config["start_time"] = start_time
         if isinstance(end_time, str):
-            end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            end_time = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
             config["end_time"] = end_time
-            
+
         if start_time > end_time:
             raise ValueError("start_time must be before end_time")
-
 
     # Convert hours/days to start_time/end_time
     if has_hours:
@@ -72,7 +71,7 @@ def run_generate_langgraph(config):
     # sample
     if not config.get("sample"):
         config["sample"] = 2000
-    
+
     # general
     if config.get("dataset_name") and config.get("project_name"):
         raise ValueError("dataset_name and project_name cannot both be provided")
@@ -94,7 +93,6 @@ def run_generate_langgraph(config):
             "start_time and end_time cannot be provided when dataset_name is provided"
         )
 
-
     print("Starting Clio clustering pipeline...\n")
     print(f"Current working directory: {os.getcwd()}")
     print(f"Dataset: {config['dataset_name']}") if config.get(
@@ -103,7 +101,6 @@ def run_generate_langgraph(config):
     print(f"Sample size: {config['sample']}")
 
     from open_clio.generate_langgraph import run_graph, save_langgraph_results
-
 
     # Display time range information in a cleaner format
     if config.get("project_name"):
@@ -127,14 +124,13 @@ def run_generate_langgraph(config):
         else:
             print(f"Time range: {start_time.isoformat()} → {end_time.isoformat()}\n")
 
-
     # TODO add more checks (start_time > end_time, start_time > curr_time)
 
     dataset_name = config.get("dataset_name")
     project_name = config.get("project_name")
     start_time = config.get("start_time")
     end_time = config.get("end_time")
-    hierarchy = config.get("hierarchy")  
+    hierarchy = config.get("hierarchy")
     summary_prompt = config.get("summary_prompt")
     save_path = config.get("save_path", "./clustering_results")
     partitions = config.get("partitions")
@@ -255,7 +251,7 @@ For more information, see the README or visit the project repository.
 
     config = load_config(args.config)
 
-    if args.action == "generate":  
+    if args.action == "generate":
         run_generate_langgraph(config)
         run_viz(config)
     elif args.action == "evaluate":

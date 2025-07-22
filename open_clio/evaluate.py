@@ -244,9 +244,7 @@ def main(config_dict=None):
 
     # Respect sample limit from config if specified
     sample_limit = config.get("sample", 2000)
-    examples = list(
-        client.list_examples(dataset_name=dataset_name, limit=sample_limit)
-    )
+    examples = list(client.list_examples(dataset_name=dataset_name, limit=sample_limit))
 
     # ask user before updating dataset
     while True:
