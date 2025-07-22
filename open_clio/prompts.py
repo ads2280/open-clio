@@ -1,6 +1,13 @@
 """
 Centralized prompt configs for Clio analysis
 """
+DEFAULT_SUMMARY_PROMPT ="""Summarize this run: {{run.inputs}} {{run.outputs}}
+- Be specific about the subject matter or domain when clear
+- Leave out redundant words like 'User requested' or 'I understand'
+- Include context about the purpose, use case, or technical details when relevant
+- Capture the core intent of the run
+- Keep it concise - aim for one clear sentence
+"""
 
 SUMMARIZE_INSTR = """
 {summary_prompt}

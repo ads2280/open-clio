@@ -77,10 +77,6 @@ def run_generate_langgraph(config):
         raise ValueError("dataset_name and project_name cannot both be provided")
     if not config.get("dataset_name") and not config.get("project_name"):
         raise ValueError("dataset_name or project_name must be provided")
-    if not config.get("summary_prompt"):  # could add fallback
-        raise ValueError(
-            "summary_prompt must be provided, for example: Summarize this run: {{inputs.messages}}"
-        )  # checkexample
 
     # time
     config, time_info = process_time_config(config)
@@ -98,7 +94,7 @@ def run_generate_langgraph(config):
     print(f"Dataset: {config['dataset_name']}") if config.get(
         "dataset_name"
     ) else print(f"Project: {config['project_name']}")
-    print(f"Sample size: {config['sample']}")
+    print(f"Max sample size: {config['sample']}")
 
     from open_clio.generate_langgraph import run_graph, save_langgraph_results
 
@@ -108,7 +104,7 @@ def run_generate_langgraph(config):
         end_time = config.get("end_time")
 
         if not start_time:
-            start_time = datetime.now() - timedelta(hours=1)
+            start_time = datetime.now() - timedelta(hours=24)
         if not end_time:
             end_time = datetime.now()
 
