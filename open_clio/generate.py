@@ -211,7 +211,7 @@ def extract_threads(project_name, sample, start_time, end_time, filter_string=No
             offset = resp_json["total"]
         return thread_ids
 
-    def load_thread_runs(project_id: str, thread_ids: list[str]) -> list:
+    def load_thread_runs(project_id: str, thread_ids: list[str], filter_string: str | None = None) -> list:
         # eq(metadata_value, {thread_id}) to in(metadata_value, [...])
         thread_ids_str = '","'.join(thread_ids)
         thread_filter = f'and(in(metadata_key, ["session_id","conversation_id","thread_id"]), in(metadata_value, ["{thread_ids_str}"]))'
@@ -234,9 +234,8 @@ def extract_threads(project_name, sample, start_time, end_time, filter_string=No
                     break
 
             if thread_id and thread_id in thread_ids:
-                # first run for each thread
-                # TODO - probably want most recent
-                if thread_id not in runs_by_thread:
+                # last run for each thread (most recent)
+                if thread_id not in runs_by_thread or run.start_time > runs_by_thread[thread_id].start_time:
                     runs_by_thread[thread_id] = run
 
         result = []
