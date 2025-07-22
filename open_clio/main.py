@@ -30,20 +30,28 @@ def process_time_config(config):
     time_info = {"method": "explicit", "original": None}
 
     if has_explicit_times:
-        if config.get("start_time") > config.get("end_time"):
+        # Convert string timestamps to datetime objects for validation
+        start_time = config.get("start_time")
+        end_time = config.get("end_time")
+        
+        if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            config["start_time"] = start_time
+        if isinstance(end_time, str):
+            end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            config["end_time"] = end_time
+            
+        if start_time > end_time:
             raise ValueError("start_time must be before end_time")
-        if config.get("start_time") > datetime.now():
-            raise ValueError("start_time cannot be in the future")
-        if config.get("end_time") > datetime.now():
-            raise ValueError("end_time cannot be in the future")
+
 
     # Convert hours/days to start_time/end_time
     if has_hours:
         hours = config["hours"]
         if not isinstance(hours, int) or hours <= 0:
             raise ValueError("hours must be a positive integer")
-        config["start_time"] = (datetime.now() - timedelta(hours=hours)).isoformat()
-        config["end_time"] = datetime.now().isoformat()
+        config["start_time"] = datetime.now() - timedelta(hours=hours)
+        config["end_time"] = datetime.now()
         time_info = {"method": "hours", "original": hours}
         del config["hours"]
 
@@ -51,8 +59,8 @@ def process_time_config(config):
         days = config["days"]
         if not isinstance(days, int) or days <= 0:
             raise ValueError("days must be a positive integer")
-        config["start_time"] = (datetime.now() - timedelta(days=days)).isoformat()
-        config["end_time"] = datetime.now().isoformat()
+        config["start_time"] = datetime.now() - timedelta(days=days)
+        config["end_time"] = datetime.now()
         time_info = {"method": "days", "original": days}
         del config["days"]
 
@@ -87,15 +95,12 @@ def run_generate_langgraph(config):
         )
 
 
-    print("Starting Clio clustering pipeline...")
+    print("Starting Clio clustering pipeline...\n")
     print(f"Current working directory: {os.getcwd()}")
     print(f"Dataset: {config['dataset_name']}") if config.get(
         "dataset_name"
     ) else print(f"Project: {config['project_name']}")
     print(f"Sample size: {config['sample']}")
-    if config.get("hierarchy"):
-        print(f"Hierarchy (number of examples at each level): {config['hierarchy']}")
-    print("Examples will be clustered according to the following partitions:")
 
     from open_clio.generate_langgraph import run_graph, save_langgraph_results
 
@@ -106,21 +111,21 @@ def run_generate_langgraph(config):
         end_time = config.get("end_time")
 
         if not start_time:
-            start_time = (datetime.now() - timedelta(hours=1)).isoformat()
+            start_time = datetime.now() - timedelta(hours=1)
         if not end_time:
-            end_time = datetime.now().isoformat()
+            end_time = datetime.now()
 
         # Format the time range display based on how it was specified
         if time_info["method"] == "hours":
             print(
-                f"Time range: Last {time_info['original']} hours ({start_time} → {end_time})\n"
+                f"Time range: Last {time_info['original']} hours ({start_time.isoformat()} → {end_time.isoformat()})\n"
             )
         elif time_info["method"] == "days":
             print(
-                f"Time range: Last {time_info['original']} days ({start_time} → {end_time})\n   "
+                f"Time range: Last {time_info['original']} days ({start_time.isoformat()} → {end_time.isoformat()})\n   "
             )
         else:
-            print(f"Time range: {start_time} → {end_time}\n")
+            print(f"Time range: {start_time.isoformat()} → {end_time.isoformat()}\n")
 
 
     # TODO add more checks (start_time > end_time, start_time > curr_time)

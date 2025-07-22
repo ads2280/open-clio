@@ -131,7 +131,7 @@ def generate_hierarchy(total_examples, partitions) -> list[int]:
     if num_partitions > 0:
         ktop = num_partitions
     else:
-        ktop = max(2, min(10, total_examples // 100))
+        ktop = max(3, min(10, total_examples // 100))
 
     # base clusters
     base_k = int(math.sqrt(total_examples))
@@ -169,14 +169,17 @@ def extract_threads(project_name, sample, start_time, end_time):
         offset = 0
         thread_ids = []
         for _ in range(MAX_PAGES):
+            start_time_str = start_time.isoformat() if hasattr(start_time, 'isoformat') else start_time
+            end_time_str = end_time.isoformat() if hasattr(end_time, 'isoformat') else end_time
+            
             resp = client.request_with_retries(
                 "POST",
                 "runs/group",
                 json={
                     "session_id": project_id,
                     "group_by": "conversation",
-                    "start_time": start_time,
-                    "end_time": end_time,
+                    "start_time": start_time_str,
+                    "end_time": end_time_str,
                     "offset": offset,
                     "limit": 100,
                 },

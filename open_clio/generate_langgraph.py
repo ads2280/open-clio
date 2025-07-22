@@ -547,10 +547,10 @@ class State(TypedDict):
     # from configs
     dataset_name: str | None
     project_name: str | None
-    start_time: str | None
-    end_time: str | None
+    start_time: datetime | None
+    end_time: datetime | None
     sample: int | float | None
-    hierarchy: list[int] | None
+    hierarchy: Annotated[list[int] | None, lambda l, r: l if l is not None else r] # first non none
     partitions: dict | None
     summary_prompt: str | None
     examples: Annotated[list[ls_schemas.Example], operator.add]
@@ -587,12 +587,12 @@ def load_examples_or_runs(state: State) -> dict:
         if state.get("start_time"):
             start_time = state.get("start_time")
         else:
-            start_time = (datetime.now() - timedelta(hours=1)).isoformat()
+            start_time = datetime.now() - timedelta(hours=1)
 
         if state.get("end_time"):
             end_time = state.get("end_time")
         else:
-            end_time = (datetime.now()).isoformat()
+            end_time = datetime.now()
         # this should be the only place start_time, end_time matters
         sample = state.get("sample")
         examples = extract_threads(project_name, sample, start_time, end_time)
@@ -601,7 +601,6 @@ def load_examples_or_runs(state: State) -> dict:
         print(
             f"\nLoaded {total_examples} runs, generating summaries and embeddings... "
         )
-        print(f"Runs will be clustered according to the following partitions:")
     else:
         raise ValueError("Either dataset_name or project_name must be provided")
 
@@ -626,7 +625,7 @@ def load_hierarchy(state: State) -> list[int]:
             )
 
     validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
-    print(f"Hierarchy (number of examples at each level): {hierarchy}")
+    print(f"Preparing clusters, targetting a hierarchy of {hierarchy} examples at each level...")
     
 
     return {"hierarchy": hierarchy}
@@ -666,7 +665,7 @@ def map_partitions(state: State) -> list[Send]:
         if summary:
             summaries_by_partition[summary["partition"]].append(summary)
 
-    print("Examples will be clustered according to the following partitions:")
+    print("Examples or runs will be clustered according to the following partitions:")
     print(", ".join(set(summaries_by_partition.keys())))
     print("\n[tqdm would be helpful here]\n")
 
@@ -728,8 +727,8 @@ async def run_graph(
     *,
     dataset_name: str | None = None,
     project_name: str | None = None,
-    start_time: str | None = None,
-    end_time: str | None = None,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
     save_path: str | None = None,
     partitions: dict | None = None,
     sample: int | None = None,  # anika - no sampling rate for now
