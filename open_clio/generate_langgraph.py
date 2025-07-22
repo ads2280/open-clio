@@ -628,7 +628,7 @@ def load_hierarchy(state: State) -> list[int]:
 
     validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
     print(
-        f"\nPreparing clusters, targetting a hierarchy of {hierarchy} examples at each level..."
+        f"\nPreparing clusters, targetting a hierarchy of {hierarchy}..."
     )
 
     return {"hierarchy": hierarchy}

@@ -172,7 +172,7 @@ def generate_hierarchy(total_examples, partitions) -> list[int]:
     return hierarchy
 
 
-def extract_threads(project_name, sample, start_time, end_time):
+def extract_threads(project_name, sample, start_time, end_time, filter_string=None):
     MAX_PAGES = 1000
 
     def get_thread_ids(project_id, sample, start_time, end_time):
@@ -214,12 +214,15 @@ def extract_threads(project_name, sample, start_time, end_time):
     def load_thread_runs(project_id: str, thread_ids: list[str]) -> list:
         # eq(metadata_value, {thread_id}) to in(metadata_value, [...])
         thread_ids_str = '","'.join(thread_ids)
-        filter_string = f'and(in(metadata_key, ["session_id","conversation_id","thread_id"]), in(metadata_value, ["{thread_ids_str}"]))'
-        # return list(client.list_runs(project_id=project_id, filter=filter_string, is_root=True)) --? prev
+        thread_filter = f'and(in(metadata_key, ["session_id","conversation_id","thread_id"]), in(metadata_value, ["{thread_ids_str}"]))'
 
-        # get all runs, group by thread id and pick one run per thread
+        if filter_string:
+            combined_filter = f'and({thread_filter}, {filter_string})'
+        else:
+            combined_filter = thread_filter
+
         all_runs = list(
-            client.list_runs(project_id=project_id, filter=filter_string, is_root=True)
+            client.list_runs(project_id=project_id, filter=combined_filter, is_root=True)
         )
 
         runs_by_thread = {}
@@ -254,6 +257,7 @@ def extract_threads(project_name, sample, start_time, end_time):
                 limit=sample,
                 start_time=start_time,
                 end_time=end_time,
+                filter=filter_string, 
             )
         )
     else:

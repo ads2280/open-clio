@@ -95,6 +95,8 @@ def run_generate_langgraph(config):
         "dataset_name"
     ) else print(f"Project: {config['project_name']}")
     print(f"Max sample size: {config['sample']}")
+    if config.get("filter_string"):
+        print(f"Filter string: {config['filter_string']}")
 
     from open_clio.generate_langgraph import run_graph, save_langgraph_results
 
