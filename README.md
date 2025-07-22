@@ -42,13 +42,12 @@ If you specified a `project_name`, you may also include time filtering options (
 If no time filtering is specified, defaults to last 1 hour.
 
 You must also specify:
-- `hierarchy`: How many clusters to create at each level and how many levels total [base_level, middle_level, top_level] (3 levels in this example)
-- `summary_prompt`: Pass in the example or run to summarize (for example {{run}} or {{example.inputs}}) and instruct an LLM on how to summarize it.
-- `save_path`: Where to save the results
-- `sample`: the maximum number of examples or runs to return
+- `sample`: the maximum number of examples or runs to return (capped at 2000 currently)
 
 Additionally, you can include:
-- `partitions`: overarching areas to sort your examples or runs into
+- `hierarchy`: How many clusters to create at each level and how many levels total [base_level, middle_level, top_level] (3 levels in this example)
+- `summary_prompt`: Pass in a specific part of the example or run to summarize (for example {{run}} or {{example.inputs}}) and instruct an LLM how to summarize it. Defaults to summarizing run inputs and outputs.
+- `save_path`: Where to save the results- `partitions`: overarching areas to sort your examples or runs into
 
 
 ### 3. Generate Clio clusters

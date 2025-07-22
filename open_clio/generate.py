@@ -27,6 +27,7 @@ from open_clio.prompts import (
     PROPOSE_CLUSTERS_INSTR,
     RENAME_CLUSTER_INSTR,
     SUMMARIZE_INSTR,
+    DEFAULT_SUMMARY_PROMPT,
 )
 from pydantic import BaseModel, Field
 from sklearn.cluster import KMeans
@@ -48,8 +49,8 @@ llm = init_chat_model(
 
 async def summarize_example(
     partitions: dict[str, str],
-    summary_prompt: str,
     example: dict,
+    summary_prompt: str | None = None,
     dataset_name: str | None = None,
     project_name: str | None = None,
 ) -> schemas.Summary | None:
@@ -73,6 +74,10 @@ async def summarize_example(
 
     # create structured LLM here
     structured_llm = llm.with_structured_output(ResponseFormatter, include_raw=True)
+
+
+    if summary_prompt is None:
+        summary_prompt = DEFAULT_SUMMARY_PROMPT
 
     # use custom prompt directly - it should already contain the {{mustache}} template
     summary_prompt_w_partitions = f"{summary_prompt}\n\nProvide your summary and also select the most appropriate partition for this conversation from the provided list:\n{partitions_str}"
@@ -127,7 +132,6 @@ async def summarize_example(
 
 
 def generate_hierarchy(total_examples, partitions) -> list[int]:
-    # find the old way i did this / geometric progression
     # top clusters
     num_partitions = len(partitions) if partitions else 0
 

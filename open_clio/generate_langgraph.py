@@ -589,7 +589,7 @@ def load_examples_or_runs(state: State) -> dict:
         if state.get("start_time"):
             start_time = state.get("start_time")
         else:
-            start_time = datetime.now() - timedelta(hours=1)
+            start_time = datetime.now() - timedelta(hours=24)
 
         if state.get("end_time"):
             end_time = state.get("end_time")
@@ -652,11 +652,11 @@ def map_summaries(state: State) -> list[Send]:
 
 async def summarize(state: State) -> dict:
     example = state["example"]
-    # print(f"summary prompt: {state.get('summary_prompt')}")
+    summary_prompt = state.get("summary_prompt")
     summary = await summarize_example(
-        state["partitions"],  # can be None
-        state.get("summary_prompt"),
+        state["partitions"],  # can be None,
         example,
+        summary_prompt, # can be None
         state.get("dataset_name"),
         state.get("project_name"),
     )
@@ -727,15 +727,15 @@ partitioned_cluster_graph = partitioned_cluster_builder.compile()
 
 async def run_graph(
     hierarchy: list,
-    summary_prompt: str,
     *,
+    summary_prompt: str | None = None,
     dataset_name: str | None = None,
     project_name: str | None = None,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
     save_path: str | None = None,
     partitions: dict | None = None,
-    sample: int | None = None,  # anika - no sampling rate for now
+    sample: int | None = None,  # mandatory for now
     max_concurrency: int = DEFAULT_SUMMARIZATION_CONCURRENCY,
 ):
     # Create a state dictionary for load_examples_or_runs
