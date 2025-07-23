@@ -611,29 +611,26 @@ def load_examples_or_runs(state: State) -> dict:
     return {"total_examples": total_examples, "examples": examples}
 
 
-def load_hierarchy(state: State) -> list[int]:
+def load_hierarchy(state: State) -> dict:
     hierarchy = state.get("hierarchy")
     total_examples = state.get("total_examples")
     partitions = state.get("partitions")
-    if not hierarchy:
+    
+    # If hierarchy is already provided, use it
+    if hierarchy:
+        validate_hierarchy(hierarchy, total_examples)
+        print(f"\nPreparing clusters, targeting a hierarchy of {hierarchy}...")
+        return {"hierarchy": hierarchy}
+    
+    # If we have total_examples but no hierarchy, generate it
+    if total_examples is not None:
         hierarchy = generate_hierarchy(total_examples, partitions)
-
-    # Validate partitions match hierarchy if both are provided
-    if partitions and hierarchy:
-        num_partitions = len(partitions.keys())
-        num_top_level_clusters = hierarchy[-1]
-        if num_partitions != num_top_level_clusters:
-            warnings.warn(
-                f"Number of partitions ({num_partitions}) does not match number of "
-                f"top-level clusters ({num_top_level_clusters})"
-            )
-
-    validate_hierarchy(hierarchy, total_examples)  # Gives you an option to quit
-    print(
-        f"\nPreparing clusters, targetting a hierarchy of {hierarchy}..."
-    )
-
-    return {"hierarchy": hierarchy}
+        validate_hierarchy(hierarchy, total_examples)
+        print(f"\nPreparing clusters, targeting a hierarchy of {hierarchy}...")
+        return {"hierarchy": hierarchy}
+    
+    # This shouldn't happen, but just in case
+    raise ValueError("Cannot generate hierarchy without total_examples")
 
 
 def map_summaries(state: State) -> list[Send]:
@@ -849,6 +846,8 @@ def save_langgraph_results(results, save_path=None):
             and "run_id" in example["metadata"]
         ):
             example_id = example["metadata"]["run_id"]
+        elif isinstance(example, dict) and "run_id" in example:
+            example_id = example["run_id"]
         else:
             raise ValueError(f"Example {example} has no ID")
 
