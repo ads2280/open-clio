@@ -653,16 +653,17 @@ def map_summaries(state: State) -> list[Send]:
 async def summarize(state: State) -> dict:
     example = state["example"]
     summary_prompt = state.get("summary_prompt")
+    if summary_prompt is None:
+        summary_prompt = "Summarize this run: {{run.inputs}} {{run.outputs}}\n- Be specific about the subject matter or domain when clear\n- Leave out redundant words like 'User requested' or 'I understand'\n- Include context about the purpose, use case, or technical details when relevant\n- Capture the core intent of the run\n- Keep it concise - aim for one clear sentence"
+    
     summary = await summarize_example(
         state["partitions"],  # can be None,
         example,
-        summary_prompt, # can be None
+        summary_prompt, # won't be None
         state.get("dataset_name"),
         state.get("project_name"),
     )
-    if summary_prompt is None:
-        summary_prompt = "Summarize this run: {{run.inputs}} {{run.outputs}}\n- Be specific about the subject matter or domain when clear\n- Leave out redundant words like 'User requested' or 'I understand'\n- Include context about the purpose, use case, or technical details when relevant\n- Capture the core intent of the run\n- Keep it concise - aim for one clear sentence"
-    return {"summaries": [summary], "summary_prompt": summary_prompt}
+    return {"summaries": [summary]}
 
 
 def map_partitions(state: State) -> list[Send]:
