@@ -77,7 +77,7 @@ async def summarize_example(
 
 
     if summary_prompt is None:
-        summary_prompt = """Summarize this run: {{run.inputs}} {{run.outputs}}
+        summary_prompt = """Summarize this run: {{example.inputs}} {{example.outputs}}
 - Be specific about the subject matter or domain when clear
 - Leave out redundant words like 'User requested' or 'I understand'
 - Include context about the purpose, use case, or technical details when relevant
@@ -108,10 +108,10 @@ async def summarize_example(
 
     chain = prompt | truncate_prompt | structured_llm
 
-    if project_name:
-        result = await chain.ainvoke({"run": example})
-    elif dataset_name:
+    if dataset_name:
         result = await chain.ainvoke({"example": example})
+    elif project_name:
+        result = await chain.ainvoke({"run": example})
     else:
         # Handle the case where neither is provided
         print("Error: Either dataset_name or project_name must be provided")
