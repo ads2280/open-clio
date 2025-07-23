@@ -77,7 +77,13 @@ async def summarize_example(
 
 
     if summary_prompt is None:
-        summary_prompt = DEFAULT_SUMMARY_PROMPT
+        summary_prompt = """Summarize this run: {{run.inputs}} {{run.outputs}}
+- Be specific about the subject matter or domain when clear
+- Leave out redundant words like 'User requested' or 'I understand'
+- Include context about the purpose, use case, or technical details when relevant
+- Capture the core intent of the run
+- Keep it concise - aim for one clear sentence
+"""
 
     # use custom prompt directly - it should already contain the {{mustache}} template
     summary_prompt_w_partitions = f"{summary_prompt}\n\nProvide your summary and also select the most appropriate partition for this conversation from the provided list:\n{partitions_str}"

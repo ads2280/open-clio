@@ -613,6 +613,7 @@ def load_examples_or_runs(state: State) -> dict:
 
 
 def load_hierarchy(state: State) -> dict:
+    # works w/ configs, but not on deployed...could only be this
     hierarchy = state.get("hierarchy")
     total_examples = state.get("total_examples")
     partitions = state.get("partitions")
@@ -660,7 +661,15 @@ async def summarize(state: State) -> dict:
         state.get("dataset_name"),
         state.get("project_name"),
     )
-    return {"summaries": [summary]}
+    if summary_prompt is None:
+        summary_prompt = """Summarize this run: {{run.inputs}} {{run.outputs}}
+- Be specific about the subject matter or domain when clear
+- Leave out redundant words like 'User requested' or 'I understand'
+- Include context about the purpose, use case, or technical details when relevant
+- Capture the core intent of the run
+- Keep it concise - aim for one clear sentence
+"""
+    return {"summaries": [summary], "summary_prompt": summary_prompt}
 
 
 def map_partitions(state: State) -> list[Send]:
