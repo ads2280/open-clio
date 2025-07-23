@@ -613,7 +613,6 @@ def load_examples_or_runs(state: State) -> dict:
 
 
 def load_hierarchy(state: State) -> dict:
-    # works w/ configs, but not on deployed...could only be this
     hierarchy = state.get("hierarchy")
     total_examples = state.get("total_examples")
     partitions = state.get("partitions")
@@ -662,13 +661,7 @@ async def summarize(state: State) -> dict:
         state.get("project_name"),
     )
     if summary_prompt is None:
-        summary_prompt = """Summarize this run: {{run.inputs}} {{run.outputs}}
-- Be specific about the subject matter or domain when clear
-- Leave out redundant words like 'User requested' or 'I understand'
-- Include context about the purpose, use case, or technical details when relevant
-- Capture the core intent of the run
-- Keep it concise - aim for one clear sentence
-"""
+        summary_prompt = "Summarize this run: {{run.inputs}} {{run.outputs}}\n- Be specific about the subject matter or domain when clear\n- Leave out redundant words like 'User requested' or 'I understand'\n- Include context about the purpose, use case, or technical details when relevant\n- Capture the core intent of the run\n- Keep it concise - aim for one clear sentence"
     return {"summaries": [summary], "summary_prompt": summary_prompt}
 
 
