@@ -108,10 +108,10 @@ async def summarize_example(
 
     chain = prompt | truncate_prompt | structured_llm
 
-    if dataset_name:
-        result = await chain.ainvoke({"example": example})
-    elif project_name:
+    if project_name:
         result = await chain.ainvoke({"run": example})
+    elif dataset_name:
+        result = await chain.ainvoke({"example": example})
     else:
         # Handle the case where neither is provided
         print("Error: Either dataset_name or project_name must be provided")
