@@ -565,7 +565,8 @@ class State(TypedDict):
 
 def load_examples_or_runs(state: State) -> dict:
     if state.get("examples"):
-        return {}
+        total_examples = state.get("total_examples", len(state["examples"]))
+        return {"total_examples": total_examples, "examples": state["examples"]}
     partitions = state.get("partitions") or {}
     dataset_name = state.get("dataset_name")
     project_name = state.get("project_name")

@@ -132,17 +132,22 @@ async def summarize_example(
 
 
 def generate_hierarchy(total_examples, partitions) -> list[int]:
+    print(f"DEBUG generate_hierarchy: total_examples={total_examples}, partitions={partitions}")
+    
     # top clusters
     num_partitions = len(partitions) if partitions else 0
+    print(f"DEBUG: num_partitions={num_partitions}")
 
     if num_partitions > 0:
         ktop = num_partitions
     else:
         ktop = max(3, min(10, total_examples // 100))
+    print(f"DEBUG: ktop={ktop}")
 
     # base clusters
     base_k = int(math.sqrt(total_examples))
     base_k = min(base_k, total_examples // 3)  # for small ds
+    print(f"DEBUG: base_k={base_k}")
 
     # num levels
     if total_examples < 50:
@@ -153,22 +158,22 @@ def generate_hierarchy(total_examples, partitions) -> list[int]:
         levels = 3
     else:
         levels = 4
+    print(f"DEBUG: levels={levels}")
 
     if levels == 1:
         hierarchy = [base_k]
     elif levels == 2:
         hierarchy = [base_k, ktop]
     else:
-        ratio = (ktop / base_k) ** (
-            1 / (levels - 1)
-        )  # geometric progression from clio paper
+        ratio = (ktop / base_k) ** (1 / (levels - 1))
         hierarchy = [base_k]
         for level in range(1, levels - 1):
             n_level = int(base_k * (ratio**level))
             n_level = max(2, n_level)
             hierarchy.append(n_level)
         hierarchy.append(ktop)
-
+    
+    print(f"DEBUG: final hierarchy={hierarchy}")
     return hierarchy
 
 
