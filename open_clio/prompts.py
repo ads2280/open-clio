@@ -17,7 +17,7 @@ Provide your summary and also select the most appropriate partition for this con
 """
 
 CRITERIA = """
-The cluster name should be a specific, imperative sentence that helps teams, analysts, and stakeholders take immediate action.
+The cluster name should be a concise, descriptive phrase that helps teams quickly identify the type of work and expertise needed.
 
 **BUSINESS PURPOSE:** These clusters enable teams to:
 - Route requests or issues to the right specialists quickly
@@ -26,38 +26,45 @@ The cluster name should be a specific, imperative sentence that helps teams, ana
 - Allocate effort based on frequency and importance
 
 **NAMING REQUIREMENTS:**
-Each cluster name must clearly indicate:
-1. The main topic, domain, or subject area
-2. The specific type of task or request
-3. Technical or contextual details when relevant
+Each cluster name should be:
+1. **Concise**: 3-5 words maximum
+2. **Noun-based**: Focus on what the work is, not what action to take
+3. **Specific**: Include the domain/topic and work type
+4. **Clear**: Immediately understandable to stakeholders
 
-**PRECISION REQUIREMENTS:**
-- **Be maximally specific**: Use precise technical terms, specific technologies, exact problem types
-- **Include technical details**: Programming languages, frameworks, specific tools, methodologies
-- **Specify the exact task**: Not just "help" but "debug", "configure", "integrate", "optimize"
-- **Add context when critical**: Target audience, use case, complexity level, domain area
+**NAMING GUIDELINES:**
+- **Start with the domain/topic**: Programming, Business, Education, etc.
+- **Add the work type**: Development, Analysis, Support, Content, etc.
+- **Use nouns, not verbs**: "Business Development" not "Develop Business"
+- **Keep it simple**: Avoid technical jargon unless essential
+- **Be specific enough to distinguish**: "Web Development" vs "Mobile Development"
 
-**GOOD examples (actionable and specific):**
-- "Debug React component state management issues in production applications"
-- "Create SEO-optimized blog content for B2B software companies"
-- "Explain advanced calculus integration techniques for engineering students"
-- "Analyze customer churn patterns using machine learning for subscription businesses"
-- "Generate Python data visualization scripts for financial time series analysis"
+**GOOD examples (concise and clear):**
+- "Business Development"
+- "Web Development" 
+- "Content Creation"
+- "Data Analysis"
+- "Customer Support"
+- "Educational Tutoring"
+- "Marketing Strategy"
+- "Technical Debugging"
+- "Research Assistance"
+- "Product Planning"
 
-**BAD examples (too generic/vague):**
-- "Fix technical problems" → What technology? What type of problem? What context?
-- "Help with content" → What kind of content? What purpose? What format?
-- "Answer questions" → About what topic? For what audience? At what level?
-- "Debug code" → What language? What type of issue? What environment?
+**BAD examples (too long or verb-heavy):**
+- "Coordinate LangChain enterprise business development operations" → "Business Development"
+- "Debug React component state management issues in production applications" → "Web Development"
+- "Create SEO-optimized blog content for B2B software companies" → "Content Creation"
+- "Analyze customer churn patterns using machine learning for subscription businesses" → "Data Analysis"
 
-**TECHNICAL PRECISION GUIDELINES:**
-- For programming: Include language, framework, specific error types, environment
-- For writing: Include format, audience, purpose, style, domain
-- For education: Include subject, level, specific concepts, target audience
-- For business: Include industry, function, tools, specific objectives
-- For analysis: Include data types, methods, tools, business context
+**DOMAIN EXAMPLES:**
+- **Programming**: "Web Development", "Mobile Development", "API Development", "System Administration"
+- **Business**: "Business Development", "Market Analysis", "Strategy Planning", "Operations Management"
+- **Content**: "Content Creation", "Technical Writing", "Marketing Content", "Documentation"
+- **Education**: "Educational Tutoring", "Concept Explanation", "Academic Support", "Skill Training"
+- **Analysis**: "Data Analysis", "Research Assistance", "Performance Analysis", "Trend Analysis"
 
-Always specify enough detail that someone with the right expertise would immediately understand exactly what work is needed and what knowledge/tools to apply.
+The goal is to create names that are immediately recognizable and actionable without being overly specific or verbose.
 """
 
 
