@@ -545,6 +545,7 @@ cluster_graph = cluster_builder.compile()
 # need to set these un run_graph
 class State(TypedDict):
     # from configs
+    action: Literal["summarize", "cluster"] | None
     dataset_name: str | None
     project_name: str | None
     start_time: datetime | None
@@ -726,7 +727,7 @@ partitioned_cluster_builder.add_node("cluster_partition", cluster_graph)
 partitioned_cluster_builder.add_node("map_partitions", map_partitions)
 partitioned_cluster_builder.add_node("aggregate_summaries", {})
 
-# Use conditional entry point to route between summarize and cluster_partition paths
+
 partitioned_cluster_builder.add_conditional_edges(
     START,
     route_action,
