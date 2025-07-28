@@ -17,7 +17,7 @@ from langchain.chat_models import init_chat_model
 from langchain.embeddings import init_embeddings
 import numpy as np
 import pandas as pd
-from langsmith import Client
+from langsmith import Client, traceable
 from langsmith import schemas as ls_schemas
 from open_clio.prompts import (
     ASSIGN_CLUSTER_INSTR,
@@ -46,7 +46,7 @@ llm = init_chat_model(
     configurable_fields=("temperature", "max_tokens", "model"),
 )
 
-
+@traceable
 async def summarize_example(
     partitions: dict[str, str],
     example: dict,
@@ -107,14 +107,8 @@ async def summarize_example(
 
     chain = prompt | truncate_prompt | structured_llm
 
-    if project_name:
-        result = await chain.ainvoke({"run": example})
-    elif dataset_name:
-        result = await chain.ainvoke({"example": example})
-    else:
-        # Handle the case where neither is provided
-        print("Error: Either dataset_name or project_name must be provided")
-        return None
+
+    result = await chain.ainvoke({"run": example})
 
     if result["parsed"]:
         # handle both dataset examples (with .id) and project examples (with metadata["run_id"])
