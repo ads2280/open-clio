@@ -600,7 +600,9 @@ def load_examples_or_runs(state: State) -> dict:
         # this should be the only place start_time, end_time matters
         sample = state.get("sample")
         filter_string = state.get("filter_string")
-        examples = extract_threads(project_name, sample, start_time, end_time, filter_string)
+        examples = extract_threads(
+            project_name, sample, start_time, end_time, filter_string
+        )
         total_examples = len(examples)
 
         print(
@@ -616,20 +618,20 @@ def load_hierarchy(state: State) -> dict:
     hierarchy = state.get("hierarchy")
     total_examples = state.get("total_examples")
     partitions = state.get("partitions")
-    
+
     # If hierarchy is already provided, use it
     if hierarchy:
         validate_hierarchy(hierarchy, total_examples)
         print(f"\nPreparing clusters, targeting a hierarchy of {hierarchy}...")
         return {"hierarchy": hierarchy}
-    
+
     # If we have total_examples but no hierarchy, generate it
     if total_examples is not None:
         hierarchy = generate_hierarchy(total_examples, partitions)
         validate_hierarchy(hierarchy, total_examples)
         print(f"\nPreparing clusters, targeting a hierarchy of {hierarchy}...")
         return {"hierarchy": hierarchy}
-    
+
     # This shouldn't happen, but just in case
     raise ValueError("Cannot generate hierarchy without total_examples")
 
@@ -655,11 +657,11 @@ async def summarize(state: State) -> dict:
     summary_prompt = state.get("summary_prompt")
     if summary_prompt is None:
         summary_prompt = "Summarize this run: {{run.inputs}} {{run.outputs}}\n- Be specific about the subject matter or domain when clear\n- Leave out redundant words like 'User requested' or 'I understand'\n- Include context about the purpose, use case, or technical details when relevant\n- Capture the core intent of the run\n- Keep it concise - aim for one clear sentence"
-    
+
     summary = await summarize_example(
         state["partitions"],  # can be None,
         example,
-        summary_prompt, # won't be None
+        summary_prompt,  # won't be None
         state.get("dataset_name"),
         state.get("project_name"),
     )
@@ -706,6 +708,7 @@ def map_partitions(state: State) -> list[Send]:
         )
     return sends
 
+
 def route_action(state: State) -> Literal["summarize", "cluster_partition"]:
     """Route to either summarize path or cluster_partition path based on action."""
     action = state.get("action")
@@ -713,6 +716,7 @@ def route_action(state: State) -> Literal["summarize", "cluster_partition"]:
         return "summarize"
     else:
         return "cluster_partition"
+
 
 partitioned_cluster_builder = StateGraph(State)
 partitioned_cluster_builder.add_node(load_examples_or_runs)
@@ -723,17 +727,16 @@ partitioned_cluster_builder.add_node("map_partitions", map_partitions)
 partitioned_cluster_builder.add_node("aggregate_summaries", {})
 
 # Use conditional entry point to route between summarize and cluster_partition paths
-partitioned_cluster_builder.add_conditional_edges(START, route_action, {
-    "summarize": "load_examples_or_runs",
-    "cluster_partition": "map_partitions"
-})
-
-partitioned_cluster_builder.add_edge("load_examples_or_runs", "load_hierarchy")
-partitioned_cluster_builder.add_edge("load_hierarchy", "summarize")
+partitioned_cluster_builder.add_conditional_edges(
+    START,
+    route_action,
+    {"summarize": "load_examples_or_runs", "cluster_partition": "map_partitions"},
+)
 
 # summarize path
+partitioned_cluster_builder.add_edge("load_examples_or_runs", "load_hierarchy")
 partitioned_cluster_builder.add_conditional_edges(
-    "summarize", map_summaries, ["summarize"]
+    "load_hierarchy", map_summaries, ["summarize"]
 )
 partitioned_cluster_builder.add_edge("summarize", "aggregate_summaries")
 partitioned_cluster_builder.add_edge("aggregate_summaries", END)

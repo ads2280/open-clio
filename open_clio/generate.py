@@ -75,7 +75,6 @@ async def summarize_example(
     # create structured LLM here
     structured_llm = llm.with_structured_output(ResponseFormatter, include_raw=True)
 
-
     if summary_prompt is None:
         summary_prompt = """Summarize this run: {{run.inputs}} {{run.outputs}}
 - Be specific about the subject matter or domain when clear
@@ -138,8 +137,10 @@ async def summarize_example(
 
 
 def generate_hierarchy(total_examples, partitions) -> list[int]:
-    print(f"DEBUG generate_hierarchy: total_examples={total_examples}, partitions={partitions}")
-    
+    print(
+        f"DEBUG generate_hierarchy: total_examples={total_examples}, partitions={partitions}"
+    )
+
     # top clusters
     num_partitions = len(partitions) if partitions else 0
     print(f"DEBUG: num_partitions={num_partitions}")
@@ -178,7 +179,7 @@ def generate_hierarchy(total_examples, partitions) -> list[int]:
             n_level = max(2, n_level)
             hierarchy.append(n_level)
         hierarchy.append(ktop)
-    
+
     print(f"DEBUG: final hierarchy={hierarchy}")
     return hierarchy
 
@@ -222,19 +223,23 @@ def extract_threads(project_name, sample, start_time, end_time, filter_string=No
             offset = resp_json["total"]
         return thread_ids
 
-    def load_thread_runs(project_id: str, thread_ids: list[str], filter_string: str | None = None) -> list:
+    def load_thread_runs(
+        project_id: str, thread_ids: list[str], filter_string: str | None = None
+    ) -> list:
         # eq(metadata_value, {thread_id}) to in(metadata_value, [...])
         thread_ids_str = '","'.join(thread_ids)
         thread_filter = f'and(in(metadata_key, ["session_id","conversation_id","thread_id"]), in(metadata_value, ["{thread_ids_str}"]))'
 
         if filter_string:
-            combined_filter = f'and({thread_filter}, {filter_string})'
+            combined_filter = f"and({thread_filter}, {filter_string})"
         else:
             combined_filter = thread_filter
 
         print(f"Using filter: {combined_filter}")
         all_runs = list(
-            client.list_runs(project_id=project_id, filter=combined_filter, is_root=True)
+            client.list_runs(
+                project_id=project_id, filter=combined_filter, is_root=True
+            )
         )
 
         runs_by_thread = {}
@@ -247,7 +252,10 @@ def extract_threads(project_name, sample, start_time, end_time, filter_string=No
 
             if thread_id and thread_id in thread_ids:
                 # last run for each thread (most recent)
-                if thread_id not in runs_by_thread or run.start_time > runs_by_thread[thread_id].start_time:
+                if (
+                    thread_id not in runs_by_thread
+                    or run.start_time > runs_by_thread[thread_id].start_time
+                ):
                     runs_by_thread[thread_id] = run
 
         result = []
@@ -261,7 +269,7 @@ def extract_threads(project_name, sample, start_time, end_time, filter_string=No
     project_id = str(client.read_project(project_name=project_name).id)
 
     thread_ids = get_thread_ids(project_id, sample, start_time, end_time)
-    
+
     if filter_string:
         print(f"Applying filter: {filter_string}")
     else:
@@ -273,7 +281,7 @@ def extract_threads(project_name, sample, start_time, end_time, filter_string=No
                 limit=sample,
                 start_time=start_time,
                 end_time=end_time,
-                filter=filter_string, 
+                filter=filter_string,
             )
         )
     else:
