@@ -2,7 +2,7 @@ import warnings
 from collections import defaultdict
 from typing import Literal
 from typing_extensions import TypedDict, Annotated
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, END, START
 from langgraph.types import Send
 from open_clio.generate import (
     DEFAULT_SUMMARIZATION_CONCURRENCY,
@@ -706,27 +706,30 @@ def map_partitions(state: State) -> list[Send]:
         )
     return sends
 
-def summarize_or_cluster(state: State) -> Literal["summarize", "map_partitions"]:
+def route_action(state: State) -> Literal["summarize", "cluster_partition"]:
+    """Route to either summarize path or cluster_partition path based on action."""
     action = state.get("action")
     if action == "summarize":
         return "summarize"
     else:
-        return "map_partitions"
+        return "cluster_partition"
 
 partitioned_cluster_builder = StateGraph(State)
 partitioned_cluster_builder.add_node(load_examples_or_runs)
 partitioned_cluster_builder.add_node(load_hierarchy)
-
-# conditional edge on action. if action == summarize, go to summarize, otherwise go to cluster_partition
 partitioned_cluster_builder.add_node("summarize", summarize)
 partitioned_cluster_builder.add_node("cluster_partition", cluster_graph)
 partitioned_cluster_builder.add_node("map_partitions", map_partitions)
 partitioned_cluster_builder.add_node("aggregate_summaries", {})
 
-partitioned_cluster_builder.set_entry_point("load_examples_or_runs")
-partitioned_cluster_builder.add_edge("load_examples_or_runs", "load_hierarchy")
+# Use conditional entry point to route between summarize and cluster_partition paths
+partitioned_cluster_builder.add_conditional_edges(START, route_action, {
+    "summarize": "load_examples_or_runs",
+    "cluster_partition": "map_partitions"
+})
 
-partitioned_cluster_builder.add_conditional_edges("load_hierarchy", summarize_or_cluster, ["summarize", "map_partitions"])
+partitioned_cluster_builder.add_edge("load_examples_or_runs", "load_hierarchy")
+partitioned_cluster_builder.add_edge("load_hierarchy", "summarize")
 
 # summarize path
 partitioned_cluster_builder.add_conditional_edges(
