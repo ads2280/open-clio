@@ -710,42 +710,36 @@ def map_partitions(state: State) -> list[Send]:
     return sends
 
 
-def route_action(state: State) -> Literal["summarize", "cluster_partition"]:
+def route_action(state: State) -> list[Send]:
     """Route to either summarize path or cluster_partition path based on action."""
-    action = state.get("action")
-    if action == "summarize":
-        return "summarize"
+    if state.get("action") == "summarize":
+        return map_summaries(state)
+    elif state.get("action") == "cluster":
+        return map_partitions(state)
     else:
-        return "cluster_partition"
+        raise ValueError(f"Invalid action: {state.get('action')}")
 
 
 partitioned_cluster_builder = StateGraph(State)
-partitioned_cluster_builder.add_node(load_examples_or_runs)
-partitioned_cluster_builder.add_node(load_hierarchy)
+# partitioned_cluster_builder.add_node(load_examples_or_runs)
+# partitioned_cluster_builder.add_node(load_hierarchy)
 partitioned_cluster_builder.add_node("summarize", summarize)
 partitioned_cluster_builder.add_node("cluster_partition", cluster_graph)
-partitioned_cluster_builder.add_node("map_partitions", map_partitions)
 partitioned_cluster_builder.add_node("aggregate_summaries", {})
 
 
 partitioned_cluster_builder.add_conditional_edges(
-    START,
-    route_action,
-    {"summarize": "load_examples_or_runs", "cluster_partition": "map_partitions"},
+    START, route_action,
 )
-
 # summarize path
-partitioned_cluster_builder.add_edge("load_examples_or_runs", "load_hierarchy")
-partitioned_cluster_builder.add_conditional_edges(
-    "load_hierarchy", map_summaries, ["summarize"]
-)
+# partitioned_cluster_builder.add_edge("load_examples_or_runs", "load_hierarchy")
 partitioned_cluster_builder.add_edge("summarize", "aggregate_summaries")
 partitioned_cluster_builder.add_edge("aggregate_summaries", END)
 
 # map_partitions path (for direct clustering)
-partitioned_cluster_builder.add_conditional_edges(
-    "map_partitions", map_partitions, ["cluster_partition"]
-)
+# partitioned_cluster_builder.add_conditional_edges(
+#     "map_partitions", map_partitions, ["cluster_partition"]
+# )
 
 # cluster_partition path ie cluster_graph
 partitioned_cluster_builder.add_edge("cluster_partition", END)
