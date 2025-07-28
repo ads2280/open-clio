@@ -706,31 +706,49 @@ def map_partitions(state: State) -> list[Send]:
         )
     return sends
 
+def summarize_or_cluster(state: State) -> Literal["summarize", "map_partitions"]:
+    action = state.get("action")
+    if action == "summarize":
+        return "summarize"
+    else:
+        return "map_partitions"
 
 partitioned_cluster_builder = StateGraph(State)
 partitioned_cluster_builder.add_node(load_examples_or_runs)
 partitioned_cluster_builder.add_node(load_hierarchy)
-partitioned_cluster_builder.add_node(summarize)
+
+# conditional edge on action. if action == summarize, go to summarize, otherwise go to cluster_partition
+partitioned_cluster_builder.add_node("summarize", summarize)
 partitioned_cluster_builder.add_node("cluster_partition", cluster_graph)
+partitioned_cluster_builder.add_node("map_partitions", map_partitions)
 partitioned_cluster_builder.add_node("aggregate_summaries", {})
-# partitioned_cluster_builder.add_node("aggregate_summaries", lambda x: x)
 
 partitioned_cluster_builder.set_entry_point("load_examples_or_runs")
 partitioned_cluster_builder.add_edge("load_examples_or_runs", "load_hierarchy")
+
+partitioned_cluster_builder.add_conditional_edges("load_hierarchy", summarize_or_cluster, ["summarize", "map_partitions"])
+
+# summarize path
 partitioned_cluster_builder.add_conditional_edges(
-    "load_hierarchy", map_summaries, ["summarize"]
+    "summarize", map_summaries, ["summarize"]
 )
 partitioned_cluster_builder.add_edge("summarize", "aggregate_summaries")
+partitioned_cluster_builder.add_edge("aggregate_summaries", END)
+
+# map_partitions path (for direct clustering)
 partitioned_cluster_builder.add_conditional_edges(
-    "aggregate_summaries", map_partitions, ["cluster_partition"]
+    "map_partitions", map_partitions, ["cluster_partition"]
 )
+
+# cluster_partition path ie cluster_graph
 partitioned_cluster_builder.add_edge("cluster_partition", END)
 partitioned_cluster_graph = partitioned_cluster_builder.compile()
 
 
 async def run_graph(
-    hierarchy: list,
     *,
+    action: Literal["summarize", "cluster"] = None,
+    hierarchy: list | None = None,
     summary_prompt: str | None = None,
     dataset_name: str | None = None,
     project_name: str | None = None,
@@ -744,6 +762,7 @@ async def run_graph(
 ):
     # Create a state dictionary for load_examples_or_runs
     state = {
+        "action": action,
         "dataset_name": dataset_name,
         "project_name": project_name,
         "start_time": start_time,
@@ -759,6 +778,7 @@ async def run_graph(
     total_examples = examples_result.get("total_examples", len(examples))
     results = await partitioned_cluster_graph.ainvoke(
         {
+            "action": action,
             "dataset_name": dataset_name,
             "project_name": project_name,
             "start_time": start_time,
