@@ -652,6 +652,7 @@ def map_summaries(state: State) -> list[Send]:
         for e in state["examples"]
     ]
 
+#TODO allow a summary to be null, x% tolerance. also retrry on connection err
 
 async def summarize(state: State) -> dict:
     example = state["example"]
@@ -677,8 +678,7 @@ def map_partitions(state: State) -> list[Send]:
 
     print("Examples or runs will be clustered according to the following partitions:")
     print(", ".join(set(summaries_by_partition.keys())))
-    print("\n[tqdm would be helpful here]\n")
-
+    
     sends = []
     for partition, cat_summaries in summaries_by_partition.items():
         example_ids = [s["example_id"] for s in cat_summaries]

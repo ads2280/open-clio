@@ -107,27 +107,32 @@ async def summarize_example(
 
     chain = prompt | truncate_prompt | structured_llm
 
-
-    result = await chain.ainvoke({"run": example})
-
-    if result["parsed"]:
-        # handle both dataset examples (with .id) and project examples (with metadata["run_id"])
-        if isinstance(example, dict) and "id" in example:
-            example_id = example["id"]
-        elif (
-            isinstance(example, dict)
-            and "metadata" in example
-            and "run_id" in example["metadata"]
-        ):
-            example_id = example["metadata"]["run_id"]
-        else:
-            raise ValueError(f"Example {example} has no ID")
-
+    try:
+        result = await chain.ainvoke({"run": example})
+        if result["parsed"]:
+            # handle both dataset examples (with .id) and project examples (with metadata["run_id"])
+            if isinstance(example, dict) and "id" in example:
+                example_id = example["id"]
+            elif (
+                isinstance(example, dict)
+                and "metadata" in example
+                and "run_id" in example["metadata"]
+            ):
+                example_id = example["metadata"]["run_id"]
+            else:
+                raise ValueError(f"Example {example} has no ID")
+    except Exception as e:
         return {
-            "summary": result["parsed"].summary,
-            "partition": result["parsed"].partition,
+            "summary": None,
+            "partition": "Failed",
             "example_id": example_id,
         }
+
+    return {
+        "summary": result["parsed"].summary,
+        "partition": result["parsed"].partition,
+        "example_id": example_id,
+    }
 
 
 def generate_hierarchy(total_examples, partitions) -> list[int]:
