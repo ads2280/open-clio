@@ -46,17 +46,20 @@ llm = init_chat_model(
     configurable_fields=("temperature", "max_tokens", "model"),
 )
 
+
 async def _retry_with_backoff(func, max_retries=3, delay=1.0):
     last_exception = None
-    for attempt in range(max_retries+1):
+    for attempt in range(max_retries + 1):
         try:
-            return await func() 
+            return await func()
         except Exception as e:
             last_exception = e
-            
+
             if attempt < max_retries:
-                current_delay = min((delay * (2 ** attempt)), 30)  
-                logger.warning(f"Attempt {attempt+1} failed: {e}. Retrying in {current_delay} seconds...")
+                current_delay = min((delay * (2**attempt)), 30)
+                logger.warning(
+                    f"Attempt {attempt + 1} failed: {e}. Retrying in {current_delay} seconds..."
+                )
                 await asyncio.sleep(current_delay)
             else:
                 logger.error(f"All {max_retries + 1} attempts failed. Last error: {e}")
@@ -123,14 +126,14 @@ async def summarize_example(
         return messages
 
     chain = prompt | truncate_prompt | structured_llm
-    
+
     async def _run_chain():
         result = await chain.ainvoke({"run": example})
         if result["parsed"]:
-            if isinstance(example, dict) and "id" in example: # dataset name
-                example_id = example["id"] 
+            if isinstance(example, dict) and "id" in example:  # dataset name
+                example_id = example["id"]
             elif (
-                isinstance(example, dict) #project name
+                isinstance(example, dict)  # project name
                 and "metadata" in example
                 and "run_id" in example["metadata"]
             ):
@@ -145,7 +148,7 @@ async def summarize_example(
             "partition": result["parsed"].partition,
             "example_id": example_id,
         }
-    
+
     try:
         return await _retry_with_backoff(_run_chain, max_retries=3, delay=1.0)
     except Exception as e:
@@ -155,6 +158,7 @@ async def summarize_example(
             "partition": "Failed",
             "example_id": None,
         }
+
 
 # don't use this anymore
 def generate_hierarchy(total_examples, partitions) -> list[int]:
