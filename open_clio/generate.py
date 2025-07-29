@@ -46,6 +46,23 @@ llm = init_chat_model(
     configurable_fields=("temperature", "max_tokens", "model"),
 )
 
+async def _retry_with_backoff(func, max_retries=3, delay=1.0):
+    last_exception = None
+    for attempt in range(max_retries+1):
+        try:
+            return await func() 
+        except Exception as e:
+            last_exception = e
+            
+            if attempt < max_retries:
+                current_delay = min((delay * (2 ** attempt)), 30)  
+                logger.warning(f"Attempt {attempt+1} failed: {e}. Retrying in {current_delay} seconds...")
+                await asyncio.sleep(current_delay)
+            else:
+                logger.error(f"All {max_retries + 1} attempts failed. Last error: {e}")
+                raise last_exception
+
+
 @traceable
 async def summarize_example(
     partitions: dict[str, str],
@@ -53,7 +70,7 @@ async def summarize_example(
     summary_prompt: str | None = None,
     dataset_name: str | None = None,
     project_name: str | None = None,
-) -> schemas.Summary | None:
+) -> schemas.Summary:
     """Use an LLM to generate a summary for a single example."""
 
     class ResponseFormatter(BaseModel):
@@ -106,35 +123,40 @@ async def summarize_example(
         return messages
 
     chain = prompt | truncate_prompt | structured_llm
-
-    try:
+    
+    async def _run_chain():
         result = await chain.ainvoke({"run": example})
         if result["parsed"]:
-            # handle both dataset examples (with .id) and project examples (with metadata["run_id"])
-            if isinstance(example, dict) and "id" in example:
-                example_id = example["id"]
+            if isinstance(example, dict) and "id" in example: # dataset name
+                example_id = example["id"] 
             elif (
-                isinstance(example, dict)
+                isinstance(example, dict) #project name
                 and "metadata" in example
                 and "run_id" in example["metadata"]
             ):
                 example_id = example["metadata"]["run_id"]
             else:
                 raise ValueError(f"Example {example} has no ID")
-    except Exception as e:
+        else:
+            raise ValueError(f"Failed to parse example {example}")
+
         return {
-            "summary": None,
-            "partition": "Failed",
+            "summary": result["parsed"].summary,
+            "partition": result["parsed"].partition,
             "example_id": example_id,
         }
+    
+    try:
+        return await _retry_with_backoff(_run_chain, max_retries=3, delay=1.0)
+    except Exception as e:
+        logger.error(f"Failed to summarize after 3 retries: {e}")
+        return {  # Changed from 'raise' to 'return'
+            "summary": None,
+            "partition": "Failed",
+            "example_id": None,
+        }
 
-    return {
-        "summary": result["parsed"].summary,
-        "partition": result["parsed"].partition,
-        "example_id": example_id,
-    }
-
-
+# don't use this anymore
 def generate_hierarchy(total_examples, partitions) -> list[int]:
     print(
         f"DEBUG generate_hierarchy: total_examples={total_examples}, partitions={partitions}"

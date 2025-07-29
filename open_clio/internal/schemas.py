@@ -5,7 +5,7 @@ from typing_extensions import TypedDict, NotRequired
 class Summary(TypedDict):
     example_id: str | uuid.UUID
     summary: str
-    category: NotRequired[str]
+    partition: NotRequired[str]
 
 
 class ClusterInfo(TypedDict):

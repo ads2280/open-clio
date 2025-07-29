@@ -652,8 +652,6 @@ def map_summaries(state: State) -> list[Send]:
         for e in state["examples"]
     ]
 
-#TODO allow a summary to be null, x% tolerance. also retrry on connection err
-
 async def summarize(state: State) -> dict:
     example = state["example"]
     summary_prompt = state.get("summary_prompt")
@@ -661,13 +659,15 @@ async def summarize(state: State) -> dict:
         summary_prompt = "Summarize this run: {{run.inputs}} {{run.outputs}}\n- Be specific about the subject matter or domain when clear\n- Leave out redundant words like 'User requested' or 'I understand'\n- Include context about the purpose, use case, or technical details when relevant\n- Capture the core intent of the run\n- Keep it concise - aim for one clear sentence"
 
     summary = await summarize_example(
-        state["partitions"],  # can be None,
+        state["partitions"],  
         example,
-        summary_prompt,  # won't be None
+        summary_prompt,  
         state.get("dataset_name"),
         state.get("project_name"),
     )
-    return {"summaries": [summary]}
+    if summary and summary.get("example_id") is not None:
+        return {"summaries": [summary]}
+    # aggregate_summaries sets a threshold for how many can fail
 
 
 def map_partitions(state: State) -> list[Send]:
@@ -678,7 +678,7 @@ def map_partitions(state: State) -> list[Send]:
 
     print("Examples or runs will be clustered according to the following partitions:")
     print(", ".join(set(summaries_by_partition.keys())))
-    
+
     sends = []
     for partition, cat_summaries in summaries_by_partition.items():
         example_ids = [s["example_id"] for s in cat_summaries]
@@ -719,17 +719,29 @@ def route_action(state: State) -> list[Send]:
     else:
         raise ValueError(f"Invalid action: {state.get('action')}")
 
+def aggregate_summaries(state: State) -> dict:
+    summaries = state.get("summaries")
+    total = len(summaries)
+    for summary in summaries:
+        if not summary["summary"]:
+            summaries.remove(summary)
+    if (total - len(summaries)) / total > 0.5: #TODO - should probably make smaller
+        raise ValueError(f"Too many summaries failed: {total - len(summaries)}/{total}")
+
+    return {}
 
 partitioned_cluster_builder = StateGraph(State)
 # partitioned_cluster_builder.add_node(load_examples_or_runs)
 # partitioned_cluster_builder.add_node(load_hierarchy)
 partitioned_cluster_builder.add_node("summarize", summarize)
 partitioned_cluster_builder.add_node("cluster_partition", cluster_graph)
-partitioned_cluster_builder.add_node("aggregate_summaries", {})
+partitioned_cluster_builder.add_node(aggregate_summaries)
+
 
 
 partitioned_cluster_builder.add_conditional_edges(
-    START, route_action,
+    START,
+    route_action,
 )
 # summarize path
 # partitioned_cluster_builder.add_edge("load_examples_or_runs", "load_hierarchy")
