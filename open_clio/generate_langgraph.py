@@ -59,7 +59,7 @@ def merge_dict(l: dict, r: dict) -> dict:
 
 class ClusterState(TypedDict):
     partition: str
-    partition_description: str 
+    partition_description: str
     hierarchy: list[int]
     clusters: Annotated[dict[int, dict], merge_dict]
     examples: list
@@ -89,7 +89,7 @@ class ClusterState(TypedDict):
 
 class ClusterStateOutput(TypedDict):
     partition: str
-    partition_description: str 
+    partition_description: str
     hierarchy: list[int]
     clusters: Annotated[dict[int, dict], merge_dict]
     proposed_clusters: list[str] | None
@@ -172,11 +172,11 @@ def base_cluster(state: ClusterState) -> dict:
         partition_k = state["hierarchy"][0]
 
     cluster_list = perform_base_clustering(
-        state["summaries"], 
-        partition_k, 
-        state["partition"], 
+        state["summaries"],
+        partition_k,
+        state["partition"],
         state["hierarchy"],
-        state.get("partition_description", "") 
+        state.get("partition_description", ""),
     )
     # need to track cluster IDs so switching to dict
     clusters = {cluster["id"]: cluster for cluster in cluster_list}
@@ -196,11 +196,15 @@ def embed(state: ClusterState) -> dict:
 
     return {"clusters": current_clusters}
 
+
 def generate_neighborhoods_step(state: ClusterState) -> dict:
     curr_level = state["current_level"]
 
-     # if at the highest level and partitions defined
-    if curr_level == (len(state["hierarchy"]) - 1) and state.get("partition") != "Default":
+    # if at the highest level and partitions defined
+    if (
+        curr_level == (len(state["hierarchy"]) - 1)
+        and state.get("partition") != "Default"
+    ):
         return {
             "neighborhood_labels": None,
             "target_clusters": None,
@@ -248,7 +252,7 @@ def propose_clusters(state: ClusterState) -> dict:
         return {
             "proposed_clusters": None,
         }
-    
+
     current_clusters = state["clusters"]
     cluster_ids = list(current_clusters.keys())
 
@@ -270,12 +274,13 @@ def dedup_clusters(state: ClusterState) -> dict:
     # deduplicated clusters should just look like a list of partitions
     if not state.get("proposed_clusters"):
         return {
-            "deduplicated_clusters": ["anika"] # ["state.get("partition")"]
+            "deduplicated_clusters": ["anika"]  # ["state.get("partition")"]
         }
     proposed = state["proposed_clusters"]
     target_clusters = state["target_clusters"]
     deduplicated = deduplicate_proposed_clusters(proposed, target_clusters)
     return {"deduplicated_clusters": deduplicated}
+
 
 def map_assign_clusters(state: ClusterState) -> list[Send]:
     current_clusters = state["clusters"]  # curr level clusters
@@ -409,7 +414,6 @@ def map_rename_clusters(state: ClusterState) -> list[Send]:
 
 
 def rename_cluster_group(state: ClusterState) -> dict:
-
     hl_name = state["hl_name"]
     member_cluster_ids = state["member_cluster_ids"]
     member_cluster_infos = state["member_cluster_infos"]
@@ -430,7 +434,7 @@ def rename_cluster_group(state: ClusterState) -> dict:
 
     cluster_list_text = "\n".join(cluster_list)
 
-    # If we're at highest level in hierarchy with a non-Default partition, 
+    # If we're at highest level in hierarchy with a non-Default partition,
     # skip LLM call and use partition name/description directly
     if level == len(hierarchy) - 1 and partition != "Default":
         parent_cluster = {
@@ -729,7 +733,7 @@ def map_partitions(state: State) -> list[Send]:
     print(", ".join(set(summaries_by_partition.keys())))
 
     sends = []
-    partitions = state.get("partitions", {}) 
+    partitions = state.get("partitions", {})
     for partition, cat_summaries in summaries_by_partition.items():
         example_ids = [s["example_id"] for s in cat_summaries]
         partition_examples = []
@@ -743,14 +747,16 @@ def map_partitions(state: State) -> list[Send]:
                 raise ValueError(f"Example {e} has no ID")
             if example_id in example_ids:
                 partition_examples.append(e)
-        partition_description = partitions.get(partition, "") if state.get("partitions") else None
-        
+        partition_description = (
+            partitions.get(partition, "") if state.get("partitions") else None
+        )
+
         sends.append(
             Send(
                 "cluster_partition",
                 {
                     "partition": partition,
-                    "partition_description": partition_description, 
+                    "partition_description": partition_description,
                     "examples": partition_examples,
                     "summaries": cat_summaries,
                     "hierarchy": state["hierarchy"],
@@ -807,7 +813,9 @@ partitioned_cluster_builder.add_edge("aggregate_summaries", END)
 
 # cluster_partition path ie cluster_graph
 partitioned_cluster_builder.add_edge("cluster_partition", END)
-partitioned_cluster_graph = partitioned_cluster_builder.compile().with_config({"max_concurrency": 5})
+partitioned_cluster_graph = partitioned_cluster_builder.compile().with_config(
+    {"max_concurrency": 5}
+)
 
 
 async def run_graph(

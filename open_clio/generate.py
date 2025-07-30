@@ -357,7 +357,9 @@ def perform_base_clustering(
     #    print(f"silhoutte score: {silhouette}")
 
     # generate descriptions for all clusters
-    return generate_cluster_descriptions(clusters, summaries, embeddings, partition, hierarchy, partition_description)
+    return generate_cluster_descriptions(
+        clusters, summaries, embeddings, partition, hierarchy, partition_description
+    )
 
 
 def embed_cluster_descriptions(current_clusters):
@@ -438,7 +440,9 @@ def propose_clusters_from_neighborhoods(
     for neighborhood_id in range(k_neighborhoods):
         neighborhood_mask = neighborhood_labels == neighborhood_id
         neighborhood_cluster_ids = [
-            cluster_ids[i] for i in range(len(cluster_ids)) if bool(neighborhood_mask[i])
+            cluster_ids[i]
+            for i in range(len(cluster_ids))
+            if bool(neighborhood_mask[i])
         ]
         neighborhood_clusters = {
             cid: current_clusters[cid] for cid in neighborhood_cluster_ids
@@ -619,7 +623,12 @@ def generate_cluster_descriptions(
 
         # use them to generate the description for this cluster
         name, description = generate_single_cluster_description(
-            cluster_summaries, contrastive_summaries, cluster_id, partition, hierarchy, partition_description
+            cluster_summaries,
+            contrastive_summaries,
+            cluster_id,
+            partition,
+            hierarchy,
+            partition_description,
         )
         cluster_info.append(
             {
@@ -672,15 +681,24 @@ def get_contrastive_summaries(cluster_mask, embeddings, summaries):
 
 
 def generate_single_cluster_description(
-    cluster_summaries, contrastive_summaries, cluster_id, partition, hierarchy, partition_description=""
+    cluster_summaries,
+    contrastive_summaries,
+    cluster_id,
+    partition,
+    hierarchy,
+    partition_description="",
 ):
-    # If this is a single-level hierarchy with a non-Default partition, 
+    # If this is a single-level hierarchy with a non-Default partition,
     # skip LLM call and use partition name/description directly
     if len(hierarchy) == 1 and partition != "Default":
         name = partition
-        summary = partition_description if partition_description else f"All items in {partition} partition"
+        summary = (
+            partition_description
+            if partition_description
+            else f"All items in {partition} partition"
+        )
         return name, summary
-    
+
     max_summaries = 15
     if len(cluster_summaries) > max_summaries:
         cluster_sample = np.random.choice(
@@ -704,7 +722,7 @@ def generate_single_cluster_description(
         contrastive_sample=contrastive_sample,
         criteria=CRITERIA,
     )
-    
+
     try:
         response = llm.invoke(
             [
