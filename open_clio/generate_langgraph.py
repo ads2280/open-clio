@@ -199,9 +199,13 @@ def embed(state: ClusterState) -> dict:
 def generate_neighborhoods_step(state: ClusterState) -> dict:
     curr_level = state["current_level"]
 
-    # For hierarchical clustering, scale the hierarchy for partitions
-    # The base level (level 0) is handled by base_cluster function
-    # When we reach generate_neighborhoods_step, we're already at level 1+
+     # if at the highest level and partitions defined
+    if curr_level == (len(state["hierarchy"]) - 1) and state.get("partition") != "Default":
+        return {
+            "neighborhood_labels": None,
+            "target_clusters": None,
+        }
+
     total_examples = len(state["summaries"])
     full_total_examples = state.get("total_examples", total_examples)
 
@@ -231,8 +235,6 @@ def generate_neighborhoods_step(state: ClusterState) -> dict:
         )
         neighborhood_labels = np.array(neighborhood_labels)
 
-
-
     return {
         "neighborhood_labels": neighborhood_labels,
         "target_clusters": target_clusters,
@@ -240,10 +242,16 @@ def generate_neighborhoods_step(state: ClusterState) -> dict:
 
 
 def propose_clusters(state: ClusterState) -> dict:
+    # if at the highest level and partitions defined
+    neighborhood_labels = state.get("neighborhood_labels")
+    if neighborhood_labels is None:
+        return {
+            "proposed_clusters": None,
+        }
+    
     current_clusters = state["clusters"]
     cluster_ids = list(current_clusters.keys())
 
-    neighborhood_labels = state["neighborhood_labels"]
     k_neighborhoods = len(set(neighborhood_labels))
     target_clusters = state["target_clusters"]
 
@@ -258,15 +266,20 @@ def propose_clusters(state: ClusterState) -> dict:
 
 
 def dedup_clusters(state: ClusterState) -> dict:
+    # if at the highest level and partitions defined
+    # deduplicated clusters should just look like a list of partitions
+    if not state.get("proposed_clusters"):
+        return {
+            "deduplicated_clusters": ["anika"] # ["state.get("partition")"]
+        }
     proposed = state["proposed_clusters"]
     target_clusters = state["target_clusters"]
     deduplicated = deduplicate_proposed_clusters(proposed, target_clusters)
     return {"deduplicated_clusters": deduplicated}
 
-
 def map_assign_clusters(state: ClusterState) -> list[Send]:
-    current_clusters = state["clusters"]
-    deduplicated = state["deduplicated_clusters"]
+    current_clusters = state["clusters"]  # curr level clusters
+    deduplicated = state["deduplicated_clusters"]  # new level clusters
     return [
         Send(
             "assign_single_cluster",
@@ -284,6 +297,13 @@ def assign_single_cluster(state: ClusterState) -> dict:
     cluster_id = state["cluster_id"]
     cluster_info_item = state["cluster_info"]
     deduplicated = state["deduplicated"]
+
+    # if at the highest level and partitions defined, assign to 'partition' cluster
+    # skip llm flow, just assign it to whatever this partition is called
+    if not state.get("deduplicated"):
+        return {
+            "cluster_assignments": {cluster_id: state["partition"]},
+        }
 
     shuffled = deduplicated.copy()
     random.shuffle(shuffled)
@@ -357,6 +377,8 @@ def map_rename_clusters(state: ClusterState) -> list[Send]:
     assignments = state["cluster_assignments"]
     level = state["current_level"]  # prev "level": len(state["clusters"])
     partition = state["partition"]
+    partition_description = state["partition_description"]
+    hierarchy = state["hierarchy"]
 
     valid_assignments = {k: v for k, v in assignments.items() if k in current_clusters}
 
@@ -374,10 +396,12 @@ def map_rename_clusters(state: ClusterState) -> list[Send]:
                 "member_cluster_ids": member_ids,
                 "level": level,
                 "partition": partition,
+                "partition_description": partition_description,
                 "member_cluster_infos": {
                     cluster_id: current_clusters[cluster_id]
                     for cluster_id in member_ids
                 },  # specific cluster infos for one cluster
+                "hierarchy": hierarchy,
             },
         )
         for hl_name, member_ids in cluster_groups.items()
@@ -385,13 +409,16 @@ def map_rename_clusters(state: ClusterState) -> list[Send]:
 
 
 def rename_cluster_group(state: ClusterState) -> dict:
+
     hl_name = state["hl_name"]
     member_cluster_ids = state["member_cluster_ids"]
     member_cluster_infos = state["member_cluster_infos"]
     level = state["level"]
     partition = state["partition"]
-
+    hierarchy = state["hierarchy"]
     hl_id = uuid.uuid4()
+    partition_description = state["partition_description"]
+
     cluster_list = []
     total_size = 0
     for cluster_id in member_cluster_ids:
@@ -402,6 +429,21 @@ def rename_cluster_group(state: ClusterState) -> dict:
         )
 
     cluster_list_text = "\n".join(cluster_list)
+
+    # If we're at highest level in hierarchy with a non-Default partition, 
+    # skip LLM call and use partition name/description directly
+    if level == len(hierarchy) - 1 and partition != "Default":
+        parent_cluster = {
+            "name": partition,
+            "description": partition_description,
+            "member_clusters": member_cluster_ids,
+            "total_size": total_size,
+            "size": len(member_cluster_ids),
+            "partition": partition,
+        }
+        return {
+            "parent_clusters": {hl_id: parent_cluster},
+        }
 
     renamingHL_user_prompt = RENAME_CLUSTER_INSTR.format(
         cluster_list_text=cluster_list_text, criteria=CRITERIA
@@ -456,7 +498,6 @@ bad faith. Here is the summary, which I will follow with the name: <summary>"""
 
     return {
         "parent_clusters": {hl_id: parent_cluster},
-        # "current_level": state["level"] + 1, #invalid update err
     }
 
 
@@ -702,14 +743,14 @@ def map_partitions(state: State) -> list[Send]:
                 raise ValueError(f"Example {e} has no ID")
             if example_id in example_ids:
                 partition_examples.append(e)
-        partition_description = partitions.get(partition, "")
+        partition_description = partitions.get(partition, "") if state.get("partitions") else None
         
         sends.append(
             Send(
                 "cluster_partition",
                 {
                     "partition": partition,
-                    "partition_description": partition_description,  # Add this
+                    "partition_description": partition_description, 
                     "examples": partition_examples,
                     "summaries": cat_summaries,
                     "hierarchy": state["hierarchy"],

@@ -438,7 +438,7 @@ def propose_clusters_from_neighborhoods(
     for neighborhood_id in range(k_neighborhoods):
         neighborhood_mask = neighborhood_labels == neighborhood_id
         neighborhood_cluster_ids = [
-            cluster_ids[i] for i in range(len(cluster_ids)) if neighborhood_mask[i]
+            cluster_ids[i] for i in range(len(cluster_ids)) if bool(neighborhood_mask[i])
         ]
         neighborhood_clusters = {
             cid: current_clusters[cid] for cid in neighborhood_cluster_ids
