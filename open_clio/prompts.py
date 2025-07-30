@@ -69,12 +69,12 @@ The goal is to create names that are immediately recognizable and actionable wit
 """
 
 
-NAME_CLUSTER_INSTR = """
+NAME_CLUSTER = """
 You are tasked with summarizing a group of related requests into a short, precise, and accurate description and name. Your goal is to create a concise summary that captures the specific needs and distinguishes them from other types of requests.
 
-Summarize all the requests into a clear, precise, two-sentence description in the past tense. Your summary should be specific to this group and distinguish it from the contrastive examples.
+Summarize all the requests into a clear, precise, one sentence description in the past tense. Your summary should be specific to this group and distinguish it from the contrastive examples.
 
-After creating the summary, generate a short name for the group of requests. This name should be at most ten words long and be specific about the topic, task type, or domain involved.
+After creating the summary, generate a short name for the group of requests. This name should be 2-6 words long at most and be specific about the topic, task type, or domain involved.
 
 Focus on specificity rather than general terms. For instance, "Debug web application authentication errors", "Create social media marketing content", or "Explain advanced mathematics concepts" would be better than general terms like "Fix technical problems" or "Help with content". Be as specific as possible about the domain and task type while capturing the core need.
 
@@ -110,6 +110,28 @@ For context, here are statements from nearby groups that are NOT part of the gro
 
 Do not elaborate beyond what you say in the tags. Remember to focus on the specific topics, tasks, 
 or domains that distinguish this group from others.
+"""
+
+NAME_CLUSTER_W_PARTITIONS = """
+This group of related requests has been given the name {partition}. 
+
+You are tasked with summarizing this group into a short, precise, and accurate description. The description should be one sentence and in the past tense.
+
+Present your output in the following format:
+<name> {partition} </name>
+<summary> [Insert your one-sentence summary/description here] </summary>
+
+Below are the related requests:
+<answers>
+{cluster_sample}
+</answers>
+
+For context, here are statements from nearby groups that are NOT part of the group you're summarizing:
+<contrastive_answers>
+{contrastive_sample}
+</contrastive_answers>
+
+Do not elaborate beyond what you say in the tags.
 """
 
 PROPOSE_CLUSTERS_INSTR = """

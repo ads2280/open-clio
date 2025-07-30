@@ -20,14 +20,12 @@ import pandas as pd
 from langsmith import Client, traceable
 from langsmith import schemas as ls_schemas
 from open_clio.prompts import (
-    ASSIGN_CLUSTER_INSTR,
     CRITERIA,
     DEDUPLICATE_CLUSTERS_INSTR,
-    NAME_CLUSTER_INSTR,
+    NAME_CLUSTER,
+    ASSIGN_CLUSTER_INSTR,
+    NAME_CLUSTER_W_PARTITIONS,
     PROPOSE_CLUSTERS_INSTR,
-    RENAME_CLUSTER_INSTR,
-    SUMMARIZE_INSTR,
-    DEFAULT_SUMMARY_PROMPT,
 )
 from pydantic import BaseModel, Field
 from sklearn.cluster import KMeans
@@ -331,7 +329,7 @@ def extract_threads(project_name, sample, start_time, end_time, filter_string=No
 
 
 def perform_base_clustering(
-    summaries, partition_k, partition
+    summaries, partition_k, partition, hierarchy, partition_description=""
 ) -> list[schemas.ClusterInfo]:
     """
     Perform the initial base clustering for a partition.
@@ -359,7 +357,7 @@ def perform_base_clustering(
     #    print(f"silhoutte score: {silhouette}")
 
     # generate descriptions for all clusters
-    return generate_cluster_descriptions(clusters, summaries, embeddings, partition)
+    return generate_cluster_descriptions(clusters, summaries, embeddings, partition, hierarchy, partition_description)
 
 
 def embed_cluster_descriptions(current_clusters):
@@ -598,9 +596,10 @@ I understand. I'll deduplicate the cluster names into approximately {target_clus
 
 
 def generate_cluster_descriptions(
-    clusters, summaries, embeddings, partition
+    clusters, summaries, embeddings, partition, hierarchy, partition_description=""
 ) -> list[schemas.ClusterInfo]:
     cluster_info = []
+
     num_clusters = max(clusters) + 1
 
     for idx in range(num_clusters):
@@ -620,7 +619,7 @@ def generate_cluster_descriptions(
 
         # use them to generate the description for this cluster
         name, description = generate_single_cluster_description(
-            cluster_summaries, contrastive_summaries, cluster_id
+            cluster_summaries, contrastive_summaries, cluster_id, partition, hierarchy, partition_description
         )
         cluster_info.append(
             {
@@ -673,8 +672,15 @@ def get_contrastive_summaries(cluster_mask, embeddings, summaries):
 
 
 def generate_single_cluster_description(
-    cluster_summaries, contrastive_summaries, cluster_id
+    cluster_summaries, contrastive_summaries, cluster_id, partition, hierarchy, partition_description=""
 ):
+    # If this is a single-level hierarchy with a non-Default partition, 
+    # skip LLM call and use partition name/description directly
+    if len(hierarchy) == 1 and partition != "Default":
+        name = partition
+        summary = partition_description if partition_description else f"All items in {partition} partition"
+        return name, summary
+    
     max_summaries = 15
     if len(cluster_summaries) > max_summaries:
         cluster_sample = np.random.choice(
@@ -693,12 +699,12 @@ def generate_single_cluster_description(
     cluster_sample = "\n".join(cluster_sample)  # list to str
     contrastive_sample = "\n".join(contrastive_sample)
 
-    prompt = NAME_CLUSTER_INSTR.format(
+    prompt = NAME_CLUSTER.format(
         cluster_sample=cluster_sample,
         contrastive_sample=contrastive_sample,
         criteria=CRITERIA,
     )
-
+    
     try:
         response = llm.invoke(
             [

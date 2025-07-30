@@ -14,11 +14,13 @@ from open_clio.generate import (
     propose_clusters_from_neighborhoods,
     deduplicate_proposed_clusters,
     llm,
+    extract_threads,
+    generate_hierarchy,
+)
+from open_clio.prompts import (
     ASSIGN_CLUSTER_INSTR,
     RENAME_CLUSTER_INSTR,
     CRITERIA,
-    extract_threads,
-    generate_hierarchy,
 )
 from logging import getLogger
 from langsmith import Client
@@ -57,6 +59,7 @@ def merge_dict(l: dict, r: dict) -> dict:
 
 class ClusterState(TypedDict):
     partition: str
+    partition_description: str 
     hierarchy: list[int]
     clusters: Annotated[dict[int, dict], merge_dict]
     examples: list
@@ -86,6 +89,7 @@ class ClusterState(TypedDict):
 
 class ClusterStateOutput(TypedDict):
     partition: str
+    partition_description: str 
     hierarchy: list[int]
     clusters: Annotated[dict[int, dict], merge_dict]
     proposed_clusters: list[str] | None
@@ -142,6 +146,8 @@ def prepare_next_level(state: ClusterState) -> dict:
         "member_cluster_ids": None,
         "member_cluster_infos": None,
         "level": None,
+        "partition": state["partition"],
+        "partition_description": state["partition_description"],
     }
 
 
@@ -166,7 +172,11 @@ def base_cluster(state: ClusterState) -> dict:
         partition_k = state["hierarchy"][0]
 
     cluster_list = perform_base_clustering(
-        state["summaries"], partition_k, state["partition"]
+        state["summaries"], 
+        partition_k, 
+        state["partition"], 
+        state["hierarchy"],
+        state.get("partition_description", "") 
     )
     # need to track cluster IDs so switching to dict
     clusters = {cluster["id"]: cluster for cluster in cluster_list}
@@ -185,11 +195,6 @@ def embed(state: ClusterState) -> dict:
             current_clusters[cluster_id]["embeddings"] = cluster_embeddings[i]
 
     return {"clusters": current_clusters}
-
-
-# def sample_examples(state: ClusterState) -> dict:
-# wut
-
 
 def generate_neighborhoods_step(state: ClusterState) -> dict:
     curr_level = state["current_level"]
@@ -225,6 +230,8 @@ def generate_neighborhoods_step(state: ClusterState) -> dict:
             cluster_embeddings, len(cluster_embeddings), target_clusters
         )
         neighborhood_labels = np.array(neighborhood_labels)
+
+
 
     return {
         "neighborhood_labels": neighborhood_labels,
@@ -681,6 +688,7 @@ def map_partitions(state: State) -> list[Send]:
     print(", ".join(set(summaries_by_partition.keys())))
 
     sends = []
+    partitions = state.get("partitions", {}) 
     for partition, cat_summaries in summaries_by_partition.items():
         example_ids = [s["example_id"] for s in cat_summaries]
         partition_examples = []
@@ -694,16 +702,17 @@ def map_partitions(state: State) -> list[Send]:
                 raise ValueError(f"Example {e} has no ID")
             if example_id in example_ids:
                 partition_examples.append(e)
+        partition_description = partitions.get(partition, "")
+        
         sends.append(
             Send(
                 "cluster_partition",
                 {
                     "partition": partition,
+                    "partition_description": partition_description,  # Add this
                     "examples": partition_examples,
                     "summaries": cat_summaries,
-                    "hierarchy": state[
-                        "hierarchy"
-                    ],  # changed to keep original not partition specific
+                    "hierarchy": state["hierarchy"],
                     "total_examples": state["total_examples"],
                 },
             )
@@ -757,7 +766,7 @@ partitioned_cluster_builder.add_edge("aggregate_summaries", END)
 
 # cluster_partition path ie cluster_graph
 partitioned_cluster_builder.add_edge("cluster_partition", END)
-partitioned_cluster_graph = partitioned_cluster_builder.compile()
+partitioned_cluster_graph = partitioned_cluster_builder.compile().with_config({"max_concurrency": 5})
 
 
 async def run_graph(
