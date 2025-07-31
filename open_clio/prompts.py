@@ -7,7 +7,7 @@ DEFAULT_SUMMARY_PROMPT = """Summarize this run: {{run.inputs}} {{run.outputs}}
 - Leave out redundant words like 'User requested' or 'I understand'
 - Include context about the purpose, use case, or technical details when relevant
 - Capture the core intent of the run
-- Keep it concise - aim for one clear sentence
+- Keep it concise - aim for under 20 words
 """
 
 SUMMARIZE_INSTR = """
@@ -72,7 +72,7 @@ The goal is to create names that are immediately recognizable and actionable wit
 NAME_CLUSTER = """
 You are tasked with summarizing a group of related requests into a short, precise, and accurate description and name. Your goal is to create a concise summary that captures the specific needs and distinguishes them from other types of requests.
 
-Summarize all the requests into a clear, precise, one sentence description in the past tense. Your summary should be specific to this group and distinguish it from the contrastive examples.
+Summarize all the requests into a clear, precise description in the past tense (under 20 words). Your summary should be specific to this group and distinguish it from the contrastive examples.
 
 After creating the summary, generate a short name for the group of requests. This name should be 2-6 words long at most and be specific about the topic, task type, or domain involved.
 
@@ -92,7 +92,7 @@ Examples of good distinctions:
 - "Data analysis tasks" vs "Content creation requests" (different task types)
 
 Present your output in the following format:
-<summary> [Insert your two-sentence summary here] </summary>
+<summary> [Insert your concise summary here - keep it under 20 words] </summary>
 <name> [Insert your generated short name here] </name>
 
 The names you propose must follow these requirements:
@@ -112,27 +112,6 @@ Do not elaborate beyond what you say in the tags. Remember to focus on the speci
 or domains that distinguish this group from others.
 """
 
-NAME_CLUSTER_W_PARTITIONS = """
-This group of related requests has been given the name {partition}. 
-
-You are tasked with summarizing this group into a short, precise, and accurate description. The description should be one sentence and in the past tense.
-
-Present your output in the following format:
-<name> {partition} </name>
-<summary> [Insert your one-sentence summary/description here] </summary>
-
-Below are the related requests:
-<answers>
-{cluster_sample}
-</answers>
-
-For context, here are statements from nearby groups that are NOT part of the group you're summarizing:
-<contrastive_answers>
-{contrastive_sample}
-</contrastive_answers>
-
-Do not elaborate beyond what you say in the tags.
-"""
 
 PROPOSE_CLUSTERS_INSTR = """
 You are tasked with creating higher-level partitions based on a
@@ -148,9 +127,7 @@ First, review the list of clusters and their descriptions:
 Your task is to create roughly {clusters_per_neighborhood} higher-level partitions
 that could potentially include one or more of the provided clusters. 
 
-These partitions should align with the LangChain support structure and be actionable for product teams:
-
-These partitions should be actionable and align with natural groupings:
+These partitions should be useful and align with natural groupings:
 
 **Main partition Types:**
 1. **Topic/Domain Areas** - Programming, Writing, Education, Business, Science, etc.
@@ -303,13 +280,19 @@ Then, provide your answer in the following format:
 [Full name of the chosen cluster, exactly as listed in the higher-level
 clusters above, without enclosing <cluster> tags]
 </answer>
+
+Now, here is the specific cluster to categorize:
+<specific_cluster>
+Name: {specific_cluster_name}
+Description: {specific_cluster_description}
+</specific_cluster>
 """
 
 RENAME_CLUSTER_INSTR = """
 You are tasked with summarizing a group of related cluster names into
 a short, precise, and accurate overall description and name.
 
-Summarize the work into a clear, precise, two-sentence description in the past tense. 
+Summarize the work into a clear, precise description in the past tense (under 20 words). 
 Your summary should specify what type of work this involves and what expertise is typically needed.
 
 After creating the summary, create a short name that immediately tells people:
@@ -334,7 +317,7 @@ Consider typical expertise areas:
 The goal is helping people immediately understand: "This involves this type of work, requiring this kind of expertise."
 
 Present your output in the following format:
-<summary> [Insert your two-sentence summary that specifies work type and expertise needed] </summary>
+<summary> [Insert your concise summary - keep it under 20 words] </summary>
 <name> [Insert your actionable name here, with no period or trailing punctuation] </name>
 
 The name you choose must follow these requirements:
@@ -446,7 +429,7 @@ For example: FINAL SCORE: 0.73
 # Prompts for extend.py
 PARTITION_AND_SUMMARIZE = """
 Please analyze this example and:
-    1. Provide a concise summary (1-2 sentences)
+    1. Provide a concise summary (under 20 words)
     2. Determine which partition this example belongs to
 
     Available partitions:

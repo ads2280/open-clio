@@ -211,4 +211,5 @@ __marimo__/
 clustering_results
 extra/
 prev/
+.prev/
 
