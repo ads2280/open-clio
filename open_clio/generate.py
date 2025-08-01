@@ -9,13 +9,12 @@ from typing import Literal, Sequence
 import numpy as np
 from langchain.chat_models import init_chat_model
 from langchain.embeddings import init_embeddings
-from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import StateGraph, END, START
 from langgraph.types import Send
 from langsmith import Client
 from typing_extensions import TypedDict, Annotated
 
-from open_clio.internal.schemas import Summary
+from open_clio.internal.schemas import SummaryAndPartition
 from open_clio.prompts import (
     ASSIGN_CLUSTER_INSTR,
     CRITERIA,
@@ -27,7 +26,7 @@ from open_clio.generate_helpers import (
     _generate_neighborhoods,
     _propose_clusters_from_neighborhoods,
     _deduplicate_proposed_clusters,
-    _summarize_example,
+    _summarize_run,
 )
 
 DEFAULT_SUMMARIZATION_CONCURRENCY = 5
@@ -46,7 +45,6 @@ llm = init_chat_model(
 # Subgraph for clustering within partitions
 # State definitions
 
-
 def merge_dict(l: dict, r: dict) -> dict:
     result = l.copy()
     for key, value in r.items():
@@ -61,10 +59,10 @@ class ClusterState(TypedDict):
     partition: str
     partition_description: str
     hierarchy: list[int]
-    clusters: Annotated[dict[int, dict], merge_dict]
-    examples: list
-    summaries: Annotated[list[Summary], lambda l, r: l + r]
-    total_examples: int
+    summaries_and_partitions: Annotated[list[SummaryAndPartition], lambda l, r: l + r] #changed from summaries
+    total_runs: int
+    # internal nodes
+    current_level_clusters: Annotated[dict[int, dict], merge_dict]
     proposed_clusters: list[str] | None
     deduplicated_clusters: list[str] | None
     current_level: int
@@ -84,73 +82,47 @@ class ClusterState(TypedDict):
     cluster_assignments: Annotated[dict, merge_dict]
     parent_clusters: Annotated[dict, merge_dict]
     # Track all clusters by level
-    all_clusters_by_level: Annotated[dict, merge_dict]
-
+    all_clusters: Annotated[dict, merge_dict]
 
 class ClusterStateOutput(TypedDict):
-    partition: str
-    partition_description: str
-    hierarchy: list[int]
-    clusters: Annotated[dict[int, dict], merge_dict]
-    proposed_clusters: list[str] | None
-    deduplicated_clusters: list[str] | None
-    current_level: int
-    # For assign_single_cluster
-    cluster_id: int | None
-    cluster_info: dict | None
-    deduplicated: list[str] | None
-    # For rename_cluster_group
-    hl_name: str | None
-    member_cluster_ids: list | None
-    member_cluster_infos: dict | None
-    level: int | None
-    # For generate_neighborhoods
-    neighborhood_labels: list[int] | None
-    target_clusters: int | None
-    # Results from this level needed for next
-    cluster_assignments: Annotated[dict, merge_dict]
-    parent_clusters: Annotated[dict, merge_dict]
-    # Track all clusters by level
-    all_clusters_by_level: Annotated[dict, merge_dict]
-
+    all_clusters: Annotated[dict, merge_dict]
 
 class Config(TypedDict):
     max_concurrency: int | None
 
-
 # Core clustering nodes
 def base_cluster(state: ClusterState) -> dict:
     curr_level = 0
-    total_examples = len(state["summaries"])
-    full_total_examples = state.get("total_examples", total_examples)
+    total_runs = len(state["summaries_and_partitions"])
+    full_total_runs = state.get("total_runs", total_runs)
 
-    if total_examples < full_total_examples:
-        ratio = total_examples / full_total_examples
-        partition_k = int(round(state["hierarchy"][0] * ratio))
+    if total_runs < full_total_runs:
+        ratio = total_runs / full_total_runs
+        target_base_clusters = int(round(state["hierarchy"][0] * ratio))
     else:
-        partition_k = state["hierarchy"][0]
+        target_base_clusters = state["hierarchy"][0]
 
     cluster_list = _perform_base_clustering(
-        state["summaries"],
-        partition_k,
+        state["summaries_and_partitions"],
+        target_base_clusters,
         state["partition"],
         state["hierarchy"],
         state.get("partition_description", ""),
     )
-    clusters = {cluster["id"]: cluster for cluster in cluster_list}
+    current_level_clusters = {cluster["id"]: cluster for cluster in cluster_list}
 
-    return {"clusters": clusters, "current_level": curr_level}
+    return {"current_level_clusters": current_level_clusters, "current_level": curr_level}
 
 
 def embed(state: ClusterState) -> dict:
-    current_clusters = state["clusters"]
+    current_clusters = state["current_level_clusters"]
     cluster_embeddings, cluster_ids = _embed_cluster_descriptions(current_clusters)
 
     for i, cluster_id in enumerate(cluster_ids):
         if cluster_id in current_clusters:
             current_clusters[cluster_id]["embeddings"] = cluster_embeddings[i]
 
-    return {"clusters": current_clusters}
+    return {"current_level_clusters": current_clusters}
 
 
 def generate_neighborhoods_step(state: ClusterState) -> dict:
@@ -166,18 +138,18 @@ def generate_neighborhoods_step(state: ClusterState) -> dict:
             "target_clusters": None,
         }
 
-    total_examples = len(state["summaries"])
-    full_total_examples = state.get("total_examples", total_examples)
+    total_runs = len(state["summaries_and_partitions"])
+    full_total_runs = state.get("total_runs", total_runs)
 
-    if total_examples < full_total_examples:
-        ratio = total_examples / full_total_examples
+    if total_runs < full_total_runs:
+        ratio = total_runs / full_total_runs
         target_clusters = int(round(state["hierarchy"][curr_level] * ratio))
     else:
         target_clusters = state["hierarchy"][curr_level]
 
     cluster_embeddings = []
     cluster_ids = []
-    for cluster_id, cluster_info in state["clusters"].items():
+    for cluster_id, cluster_info in state["current_level_clusters"].items():
         if "embeddings" in cluster_info:
             cluster_embeddings.append(cluster_info["embeddings"])
             cluster_ids.append(cluster_id)
@@ -206,7 +178,7 @@ def propose_clusters(state: ClusterState) -> dict:
             "proposed_clusters": None,
         }
 
-    current_clusters = state["clusters"]
+    current_clusters = state["current_level_clusters"]
     cluster_ids = list(current_clusters.keys())
     k_neighborhoods = len(set(neighborhood_labels))
     target_clusters = state["target_clusters"]
@@ -234,7 +206,7 @@ def dedup_clusters(state: ClusterState) -> dict:
 
 
 def map_assign_clusters(state: ClusterState) -> list[Send]:
-    current_clusters = state["clusters"]  # Current level clusters
+    current_clusters = state["current_level_clusters"]  # Current level clusters
     deduplicated = state["deduplicated_clusters"]  # Parent clusters
     return [
         Send(
@@ -315,7 +287,7 @@ def aggregate_assignments(state: ClusterState) -> dict:
 
 
 def map_rename_clusters(state: ClusterState) -> list[Send]:
-    current_clusters = state["clusters"]
+    current_clusters = state["current_level_clusters"]
     assignments = state["cluster_assignments"]
     level = state["current_level"]
     partition = state["partition"]
@@ -445,7 +417,6 @@ def aggregate_renames(state: ClusterState) -> dict:
 
 # Hierarchy level management
 
-
 def after_base_cluster(
     state: ClusterState,
 ) -> Literal["prepare_next_level", "save_final_level"]:
@@ -475,22 +446,22 @@ def is_next_level(
 
 def prepare_next_level(state: ClusterState) -> dict:
     """
-    Saves clusters from the current level into `all_clusters_by_level` dict and resets fields that are only relevant
+    Saves clusters from the current level into `all_clusters` dict and resets fields that are only relevant
     to the current level.
     """
-    current_level_clusters = {f"level_{state['current_level']}": state["clusters"]}
-    existing_clusters = state.get("all_clusters_by_level", {})
+    current_level_clusters = {f"level_{state['current_level']}": state["current_level_clusters"]}
+    existing_clusters = state.get("all_clusters", {})
     updated_clusters = {**existing_clusters, **current_level_clusters}
 
     if state["current_level"] == 0:
-        next_clusters = state["clusters"]
+        next_clusters = state["current_level_clusters"]
     else:
         next_clusters = state["parent_clusters"]
 
     return {
-        "clusters": next_clusters,
+        "current_level_clusters": next_clusters, 
         "current_level": state["current_level"] + 1,
-        "all_clusters_by_level": updated_clusters,
+        "all_clusters": updated_clusters,
         "cluster_assignments": {},
         "parent_clusters": {},
         "proposed_clusters": None,
@@ -506,7 +477,7 @@ def prepare_next_level(state: ClusterState) -> dict:
         "level": None,
         "partition": state["partition"],
         "partition_description": state["partition_description"],
-    }
+    } #level and current level? TODO
 
 
 def save_final_level(state: ClusterState) -> dict:
@@ -514,13 +485,13 @@ def save_final_level(state: ClusterState) -> dict:
     Save the final level clusters before ending
     """
     if state["current_level"] == 0 and len(state["hierarchy"]) == 1:
-        final_level_clusters = {f"level_{state['current_level']}": state["clusters"]}
+        final_level_clusters = {f"level_{state['current_level']}": state["current_level_clusters"]}
     else:
         final_level_clusters = {
             f"level_{state['current_level']}": state["parent_clusters"]
         }
     return {
-        "all_clusters_by_level": final_level_clusters,
+        "all_clusters": final_level_clusters,
     }
 
 
@@ -563,18 +534,21 @@ cluster_graph = cluster_builder.compile()
 # Main graph that orchestrates clustering by partition
 class State(TypedDict):
     action: Literal["summarize", "cluster"] | None
-    start_time: datetime | None
-    end_time: datetime | None
-    sample: int | float | None
     hierarchy: Annotated[list[int] | None, lambda l, r: l if l is not None else r]
     partitions: dict | None
+    runs: Annotated[list, operator.add]
     summary_prompt: str | None
-    filter_string: str | None
-    examples: Annotated[list, operator.add]
-    summaries: Annotated[list[Summary], lambda l, r: l + r]
-    total_examples: Annotated[int, lambda l, r: max(l, r)]
-    clusters: Annotated[dict, merge_dict]
-    all_clusters_by_level: Annotated[dict, merge_dict]
+    summaries_and_partitions: Annotated[
+        list[SummaryAndPartition], lambda l, r: l + r
+    ]
+    total_runs: Annotated[int, lambda l, r: max(l, r)]
+    current_level_clusters: Annotated[dict, merge_dict]
+    all_clusters: Annotated[dict, merge_dict]
+
+
+class OutputState(TypedDict):
+    summaries_and_partitions: Annotated[list[SummaryAndPartition], lambda l, r: l + r]
+    all_clusters: Annotated[dict, merge_dict]
 
 
 def map_summaries(state: State) -> list[Send]:
@@ -582,68 +556,70 @@ def map_summaries(state: State) -> list[Send]:
         Send(
             "summarize",
             {
-                "example": e,
+                "run": r,
                 "partitions": state.get("partitions") or {},
                 "summary_prompt": state.get("summary_prompt"),
             },
         )
-        for e in state["examples"]
+        for r in state["runs"]
     ]
 
-
 async def summarize(state: State) -> dict:
-    example = state["example"]
+    run = state["run"]
     summary_prompt = state.get("summary_prompt")
     if summary_prompt is None:
-        summary_prompt = """Summarize this run: {{run.inputs}} {{run.outputs}}
-- Be specific about the subject matter or domain when clear
-- Leave out redundant words like 'User requested' or 'I understand'
-- Include context about the purpose, use case, or technical details when relevant
-- Capture the core intent of the run
-- Keep it concise - aim for under 20 words"""
+        summary_prompt = """Generate a concise summary of this run: {{run.inputs}} {{run.outputs}}
+Guidelines:
+- Focus on the specific task, problem, or domain addressed
+- Highlight key technical details, methods, or outcomes when relevant
+- Capture the core purpose and any notable results or decisions
+- Use precise, descriptive language rather than generic phrases
+- Avoid filler words like "User requested," "I provided," or "Discussion about"
+- Aim for 8-15 words that would help someone quickly identify this run later"""
 
-    summary = await _summarize_example(
+    summary_and_partition = await _summarize_run(
         state["partitions"],
-        example,
+        run,
         summary_prompt,
     )
-    # Don't error on summary failures, aggregate_summaries has a tolerance threshold
-    if summary and summary.get("example_id") is not None:
-        return {"summaries": [summary]}
+    # Don't error on run summary failures, aggregate_summaries has a tolerance threshold
+    if summary_and_partition and summary_and_partition.get("run_id") is not None:
+        return {"summaries_and_partitions": [summary_and_partition]}
 
 
 def aggregate_summaries(state: State) -> dict:
-    summaries = state.get("summaries")
-    total = len(summaries)
-    for summary in summaries:
-        if not summary["summary"]:
-            summaries.remove(summary)
+    summaries_and_partitions = state.get("summaries_and_partitions")
+    total = len(summaries_and_partitions)
+    # Remove failed summaries 
+    for result in summaries_and_partitions:
+        if not result["summary"]:
+            summaries_and_partitions.remove(result)
     # Fails if > 25% of summaries fail
-    if (total - len(summaries)) / total > 0.25:
-        raise ValueError(f"Too many summaries failed: {total - len(summaries)}/{total}")
+    if (total - len(summaries_and_partitions)) / total > 0.25:
+        raise ValueError(f"Too many summaries failed: {total - len(summaries_and_partitions)}/{total}")
     return {}
 
 
 def map_partitions(state: State) -> list[Send]:
     summaries_by_partition = defaultdict(list)
-    for summary in state["summaries"]:
-        if summary:
-            summaries_by_partition[summary["partition"]].append(summary)
+    for result in state["summaries_and_partitions"]:
+        if result["summary"]:
+            summaries_by_partition[result["partition"]].append(result)
 
     sends = []
     partitions = state.get("partitions", {})
     for partition, cat_summaries in summaries_by_partition.items():
-        example_ids = [s["example_id"] for s in cat_summaries]
-        partition_examples = []
-        for e in state["examples"]:
-            if isinstance(e, dict) and "id" in e:
-                example_id = e["id"]
-            elif isinstance(e, dict) and "metadata" in e and "run_id" in e["metadata"]:
-                example_id = e["metadata"]["run_id"]
+        run_ids = [s["run_id"] for s in cat_summaries]
+        partition_runs = []
+        for r in state["runs"]:
+            if isinstance(r, dict) and "id" in r:
+                run_id = r["id"]
+            elif isinstance(r, dict) and "metadata" in r and "run_id" in r["metadata"]:
+                run_id = r["metadata"]["run_id"]
             else:
-                raise ValueError(f"Example {e} has no ID")
-            if example_id in example_ids:
-                partition_examples.append(e)
+                raise ValueError(f"Run {r} has no ID")
+            if run_id in run_ids:
+                partition_runs.append(r)
         partition_description = (
             partitions.get(partition, "") if state.get("partitions") else None
         )
@@ -654,10 +630,10 @@ def map_partitions(state: State) -> list[Send]:
                 {
                     "partition": partition,
                     "partition_description": partition_description,
-                    "examples": partition_examples,
-                    "summaries": cat_summaries,
+                    "runs": partition_runs,
+                    "summaries_and_partitions": cat_summaries,
                     "hierarchy": state["hierarchy"],
-                    "total_examples": state["total_examples"],
+                    "total_runs": state["total_runs"],
                 },
             )
         )

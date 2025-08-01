@@ -2,8 +2,8 @@ import uuid
 from typing_extensions import TypedDict, NotRequired
 
 
-class Summary(TypedDict):
-    example_id: str | uuid.UUID
+class SummaryAndPartition(TypedDict):
+    run_id: str | uuid.UUID
     summary: str
     partition: NotRequired[str]
 

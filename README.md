@@ -1,8 +1,8 @@
 # OpenCLIO
 
-CLIO is a tool that extracts high level insights and patterns from datasets. It automatically summarizes each example in a dataset, groups similar examples together, and organizes them into a navigable hierarchy of descriptive clusters.
+CLIO is a tool that extracts high level insights and patterns from LangSmith datasets and tracing projects. It automatically summarizes each run in your data, groups similar runs together, and organizes them into a navigable hierarchy of descriptive clusters.
 
-You provide a dataset, target hierarchy, summary prompt, and optionally define a set of partitions for organizing your data upfront. Clio summarizes each data point using your summary prompt to focus on what's most relevant, embeds and clusters those summaries based on semantic similarity, and iteratively groups clusters into higher-level categories. It also includes utilities that allow you to navigate through your clusters in an interactive web interface and evaluate how well the clustering captures the underlying patterns in your data.
+You provide a data source (dataset or tracing project), target hierarchy, summary prompt, and optionally define a set of partitions for organizing your data upfront. Clio summarizes each run using your summary prompt to focus on what's most relevant, embeds and clusters those summaries based on semantic similarity, and iteratively groups clusters into higher-level categories. It also includes utilities that allow you to navigate through your clusters in an interactive web interface and evaluate how well the clustering captures the underlying patterns in your data.
 
 For setup and usage details, see the quick start guide below.
 
@@ -42,13 +42,13 @@ If you specified a `project_name`, you may also include time filtering options (
 If no time filtering is specified, defaults to last 1 hour.
 
 You must also specify:
-- `sample`: the maximum number of examples or runs to return (capped at 2000 currently)
+- `sample`: the maximum number of runs to return (capped at 2000 currently)
 
 Additionally, you can include:
 - `hierarchy`: How many clusters to create at each level and how many levels total [base_level, middle_level, top_level] (3 levels in this example)
-- `summary_prompt`: Pass in a specific part of the example or run to summarize (for example {{run}} or {{example.inputs}}) and instruct an LLM how to summarize it. Defaults to summarizing run inputs and outputs.
+- `summary_prompt`: Pass in a specific part of the run to summarize (for example {{run.inputs}} or {{run.outputs}}) and instruct an LLM how to summarize it. Defaults to summarizing run inputs and outputs.
 - `save_path`: Where to save the results
-- `partitions`: overarching areas to sort your examples or runs into
+- `partitions`: overarching areas to sort your runs into
 - `filter_string`: Filter string to apply when loading runs from a project (e.g., "eq(run_type, 'llm')" to only include LLM runs)
 - `max_concurrency`: Maximum number of concurrent operations (default: 5)
 
@@ -59,42 +59,42 @@ uv run open-clio generate --config path/to/config
 ```
 
 This will:
-- Load examples from your dataset or threads from your tracing project
-- Summarize each item
+- Load runs from your dataset or tracing project
+- Summarize each run
 - Create clusters at multiple levels
 - Launch a web interface to explore the results
 
 ### 4. Explore your results
-When clustering is complete, the command above automatically opens a web browser where you can navigate through your clusters, from high-level categories down to individual examples.
+When clustering is complete, the command above automatically opens a web browser where you can navigate through your clusters, from high-level categories down to individual runs.
 
 You can also explore the output files in `save_path` for a quick overview of clusters:
-- `combined.csv`: All conversations with their cluster assignments
+- `combined.csv`: All runs with their cluster assignments
 - `level_{x}_clusters.csv`: Information about clusters created at each level of the hierarchy (lowest level is most granular, highest level is most broad)
 
 
 ## Example Walkthrough
 
-This example is pre-configured for a dataset of customer support conversations:
+This example is pre-configured for a tracing project:
 
-1. **Run**: `open-clio generate --config configs/customer_support.json` 
+1. **Run**: `open-clio generate --config configs/tracing_project_example.json` 
 2. **Explore**: The web interface shows clusters like:
-   - "Collect financial invoices and receipts from business organizations for accounting record management"
-   - "Manage enterprise SaaS platform operations"
-   - "Establish security frameworks and vulnerability management systems for open-source AI development projects"
+   - "Chat conversations about technical documentation and code implementation"
+   - "Question-answering runs about API usage and integration"
+   - "Support requests for troubleshooting and debugging assistance"
 
    
 ## How to:
 
 ### Write a summary prompt
 
-Your summary prompt tells the LLM how to extract key information from each example or run, especially any domain or application specific info that the example's summary must retain. More specific summary prompts create more accurate and precise clusters.
+Your summary prompt tells the LLM how to extract key information from each run, especially any domain or application specific info that the run's summary must retain. More specific summary prompts create more accurate and precise clusters.
 
-Use a mustache template to include the fields of your example or run to summarize, for example ```{{run.inputs.messages}}``` or ```{{example.inputs.0}}```
+Use a mustache template to include the fields of your run to summarize, for example ```{{run.inputs.messages}}``` or ```{{run.outputs}}```
 
 This an example for a chatbot:
 
 ```json
-"summary_prompt": "Your job is to analyze this conversation {{example.inputs}}\nExtract the key details about what the user is asking the AI assistant to do.\nFocus on capturing the main task, request, or purpose of the conversation in a clear, concise way.\n\nProvide a structured summary in this format:\n'[ACTION/TASK] with [SPECIFIC_TOPIC/SUBJECT] for [CONTEXT/PURPOSE]'\n\nGuidelines:\n- Leave out redundant words like 'User requested' or 'I understand'\n- Include context about the purpose, use case, or technical details when relevant to the domain\n- Keep it concise - aim for under 20 words"
+"summary_prompt": "Your job is to analyze this run {{run.inputs}} {{run.outputs}}\nExtract the key details about what the user is asking the AI assistant to do.\nFocus on capturing the main task, request, or purpose of the conversation in a clear, concise way.\n\nProvide a structured summary in this format:\n'[ACTION/TASK] with [SPECIFIC_TOPIC/SUBJECT] for [CONTEXT/PURPOSE]'\n\nGuidelines:\n- Leave out redundant words like 'User requested' or 'I understand'\n- Include context about the purpose, use case, or technical details when relevant to the domain\n- Keep it concise - aim for under 20 words"
 ```
 
 ### Set a hierarchy
@@ -114,26 +114,26 @@ Your hierarchy defines how many levels to create and how many clusters to create
 
 **Guidelines:**
 - Start with 1-3 levels for meaningful results, or 1-2 levels if you are using partitions.
-- Base level should be ≤ √(number of examples)
+- Base level should be ≤ √(number of runs)
 - Each level should have fewer clusters than the previous
 - Match top-level count to your partition count (if using partitions)
 
-**For 100 examples:** Try `[16, 5]`
+**For 100 runs:** Try `[16, 5]`
 
 ### Evaluate clusters
 
 ```bash
 open-clio evaluate --config path/to/config.json
 ```
-If you generated clusters for a dataser, you can use this command to evaluate clustering quality:
+If you generated clusters for a dataset, you can use this command to evaluate clustering quality:
 
-**Partition Relevance** - Checks if conversations are assigned to the correct partition (when using partitions)
+**Partition Relevance** - Checks if runs are assigned to the correct partition (when using partitions)
 
-**Hierarchical Fit** - Tests if conversations belong in their assigned clusters at each level
+**Hierarchical Fit** - Tests if runs belong in their assigned clusters at each level
 
-**Best Fit** - Verifies if conversations are assigned to the optimal cluster among all available options
+**Best Fit** - Verifies if runs are assigned to the optimal cluster among all available options
 
-**Exclusive Fit** - Measures whether conversations fit exclusively in their assigned cluster or could belong to multiple clusters
+**Exclusive Fit** - Measures whether runs fit exclusively in their assigned cluster or could belong to multiple clusters
 
 **Uniqueness Score** - Evaluates how distinct your clusters are (higher = more unique clusters)
 
@@ -160,11 +160,11 @@ Partitions pre-categorize your data into broad domains before clustering. Add a 
 - Match partition count to your top-level cluster count
 - Use clear, actionable names
 
-**When to use:** You have domain knowledge and want to ensure related examples are grouped together.
+**When to use:** You have domain knowledge and want to ensure related runs are grouped together.
 
 **When not to use:** You're exploring unknown patterns or want completely data-driven clustering.
 
-If no partitions are defined, all examples go into a single "Default" partition.
+If no partitions are defined, all runs go into a single "Default" partition.
 
 
 ## Reference
@@ -194,24 +194,25 @@ For more information, see the README or visit the project repository.
 ### Configuration 
 Your `config.json` should include the following arguments:
 #### Required
-- `dataset_name`: Your LangSmith dataset name
+- `dataset_name` OR `project_name`: Your LangSmith dataset name or tracing project name
 - `hierarchy`: List of cluster counts for each level
-- `summary_prompt`: How to summarize conversations
+- `summary_prompt`: How to summarize runs
 
 #### Optional
 - `save_path`: Where to save results (default: `./clustering_results`)
-- `sample`: Process only N examples (default: all)
+- `sample`: Process only N runs (default: all, capped at 2000)
 - `partitions`: Pre-defined categories for your data
 - `filter_string`: LangSmith filter string for project runs (e.g., "eq(run_type, 'llm')")
 - `max_concurrency`: Maximum concurrent operations (default: 5)
+- Time filtering for projects (choose one): `hours`, `days`, or `start_time`/`end_time`
 
 This is an example config.json file for a dataset:
 ```json
 {
-"dataset_name": "unthread-data",
+"dataset_name": "support-conversations",
 "hierarchy": [125,15],
-"summary_prompt": "Your job is to analyze this customer service conversation and extract the key details about what the customer is asking for help with.\nFocus on capturing the main issue, request, or problem the customer is experiencing in a clear, concise way.\n\nProvide a structured summary in this format:\n'[ACTION/TASK] with [SPECIFIC_TOPIC/SUBJECT] for [CONTEXT/PURPOSE]'\n\nExamples:\n- 'resolve billing payment issues for subscription account'\n- 'troubleshoot login authentication problems for web application'\n- 'explain product feature functionality for new user onboarding'\n- 'process refund request for defective merchandise'\n- 'assist with account security settings for privacy concerns'\n- 'help with order tracking and delivery status for e-commerce'\n- 'provide technical support for software installation issues'\n- 'handle subscription cancellation request for billing department'\n\nGuidelines:\n- Focus on what the customer is asking for help with\n- Be specific about the product, service, or issue when clear\n- Leave out redundant words like 'Customer requested' or 'I understand'\n- Include context about the urgency, complexity, or technical details when relevant\n- Capture the core customer need or problem\n- Don't include any personally identifiable information (PII) like names, locations, phone numbers, email addresses\n- Don't include any proper nouns\n- Be clear, descriptive and specific\n- Keep it concise - aim for under 20 words",
-"sample": null,
+"summary_prompt": "Your job is to analyze this run and extract the key details about what the user is asking for help with.\nFocus on capturing the main issue, request, or problem the user is experiencing in a clear, concise way.\n\nProvide a structured summary in this format:\n'[ACTION/TASK] with [SPECIFIC_TOPIC/SUBJECT] for [CONTEXT/PURPOSE]'\n\nExamples:\n- 'resolve billing payment issues for subscription account'\n- 'troubleshoot login authentication problems for web application'\n- 'explain product feature functionality for new user onboarding'\n- 'process refund request for defective merchandise'\n- 'assist with account security settings for privacy concerns'\n- 'help with order tracking and delivery status for e-commerce'\n- 'provide technical support for software installation issues'\n- 'handle subscription cancellation request for billing department'\n\nGuidelines:\n- Focus on what the user is asking for help with\n- Be specific about the product, service, or issue when clear\n- Leave out redundant words like 'User requested' or 'I understand'\n- Include context about the urgency, complexity, or technical details when relevant\n- Capture the core user need or problem\n- Don't include any personally identifiable information (PII)\n- Be clear, descriptive and specific\n- Keep it concise - aim for under 20 words",
+"sample": 2000,
 "partitions": {
     "Admin/Account management": "Billing, Authentication, Account Management, Data Deletion, Security/Privacy",
     "LangChain OSS": "Python library, JavaScript library, LangMem and other components",
