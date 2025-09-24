@@ -213,3 +213,7 @@ extra/
 prev/
 .prev/
 
+# Result directories containing sensitive data (API keys, traces)
+*_results/
+*results/
+

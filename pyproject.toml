@@ -17,6 +17,7 @@ dependencies = [
     "openevals>=0.1.0",
     "jupyter>=1.1.1",
     "langgraph>=0.5.3",
+    "asyncpg>=0.30.0",
 ]
 
 [project.scripts]
